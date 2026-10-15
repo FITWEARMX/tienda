@@ -126,6 +126,10 @@ img{display:block;max-width:100%}
 .pv-d h2{margin:4px 0 6px;font-size:22px;line-height:1.2;font-weight:800}
 .pv-d .pr{font-size:20px}
 .note{font-size:13px;color:var(--muted);margin:8px 0 0}
+.ap{margin:2px 0 0;font-size:12px;font-weight:700;color:var(--green)}
+.apbox{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#e8f6ed;font-size:13px;line-height:1.45;color:#1f3a28}
+.apbox b{color:var(--green);font-size:15px}
+.apbox small{display:block;margin-top:4px;color:var(--muted);font-size:12px}
 .estado{display:inline-block;margin-top:10px;font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;letter-spacing:.03em}
 .estado.pre{background:#e9f0fd;color:var(--blue)}.estado.drop{background:#f0ebfb;color:var(--violet)}.estado.cam{background:var(--soft);color:#3a3a3e}.estado.disp{background:#e8f6ed;color:var(--green)}
 .sizes{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px}
@@ -256,6 +260,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
       <p class="br" id="pvBrand"></p>
       <h2 id="pvName"></h2>
       <p class="pr" id="pvPrice"></p>
+      <div class="apbox" id="pvAparta" hidden></div>
       <span class="estado" id="pvEstado" hidden></span>
       <p class="note" id="pvNote" hidden></p>
       <div id="pvColorsBox"><p class="lbl">Color: <span id="pvColorName" style="font-weight:500;text-transform:none;letter-spacing:0"></span></p><div class="chips" id="pvColors"></div></div>
@@ -297,6 +302,11 @@ const TIENDA={
 const $=(s,el=document)=>el.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>'$'+Math.round(+v||0).toLocaleString('en-US');
+// Anticipo para apartar: 25% redondeado hacia arriba a decenas; 3 semanas para liquidar
+const ANTICIPO=.25, DIAS_LIQUIDAR=21;
+const anticipo=v=>Math.ceil((+v||0)*ANTICIPO/10)*10;
+const seAparta=p=>!!p&&p.estado!=='disponible';
+function fechaLimite(){ const d=new Date(Date.now()+DIAS_LIQUIDAR*864e5); return d.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]; }
 const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
 const ORDEN_T=['XS','S','M','L','XL','2XL','3XL'];
@@ -363,7 +373,8 @@ function cardHTML(p){
     (t?'<span class="tag'+(t[0]?' t-'+t[0]:'')+'">'+esc(t[1])+'</span>':'')+
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
-    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p></div>';
+    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
+    (seAparta(p)?'<p class="ap">Apártalo con '+money(anticipo(p.precio))+'</p>':'')+'</div>';
 }
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
@@ -448,6 +459,9 @@ function pintarProducto(){
     :p.estado==='preventa'?'Se aparta con anticipo. Te avisamos cuando llegue.'
     :p.estado==='camino'?('Ya viene en camino'+(p.llegaFecha?', llega aprox. el '+fecha(p.llegaFecha):'')+'. Apártala desde ahora.'):'';
   $('#pvNote').hidden=!nota; $('#pvNote').textContent=nota;
+  const ap=anticipo(p.precio);
+  $('#pvAparta').hidden=!seAparta(p);
+  if(seAparta(p)) $('#pvAparta').innerHTML='<b>Apártalo con '+money(ap)+'</b> (25%)<br>Liquidas los '+money(p.precio-ap)+' restantes antes del '+fechaLimite()+' (3 semanas).<small>El anticipo no es reembolsable.</small>';
   const cs=(p.colores||[]).filter(x=>x.nombre);
   $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=c.nombre||'';
   $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
@@ -469,7 +483,7 @@ $('#btnAdd').addEventListener('click',()=>{
   if(p.estado==='disponible'&&!tallasConStock(p).size){ window.open(wa('Hola, ¿me avisas cuando tengas de nuevo '+p.nombre+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
   const ts=tallasDe(p,c);
   if(ts.length&&!curTalla){ $('#pvErr').hidden=false; $('#pvSizes').scrollIntoView({behavior:'smooth',block:'center'}); return; }
-  bolsa.push({id:p.id,nombre:p.nombre,marca:p.marca||'',color:c.nombre||'',talla:curTalla,precio:p.precio,foto:(c.fotos&&c.fotos[0])||foto1(p),estado:p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||''});
+  bolsa.push({aparta:seAparta(p),id:p.id,nombre:p.nombre,marca:p.marca||'',color:c.nombre||'',talla:curTalla,precio:p.precio,foto:(c.fotos&&c.fotos[0])||foto1(p),estado:p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||''});
   guardarBolsa(); toast('Agregado a tu bolsa'); curTalla=''; pintarProducto();
   setTimeout(()=>{ pintarBolsa(); abrir('ovBolsa'); },350);
 });
@@ -487,7 +501,10 @@ function pagoHTML(){
 function pintarPago(){ $('#pagoBody').innerHTML='<p class="lbl">Transferencia o depósito</p>'+pagoHTML()+'<p class="lbl" style="margin-top:22px">Efectivo</p><p class="note" style="margin-top:0">En Monterrey puedes pagar en efectivo al chofer cuando recibes tu pedido.</p>'; }
 document.addEventListener('click',async e=>{ const b=e.target.closest('[data-copy]'); if(!b) return;
   try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Copiado'); }catch(err){ toast(b.dataset.copy); } });
-function totales(){ const sub=bolsa.reduce((a,x)=>a+(+x.precio||0),0); const env=entrega==='mty'?TIENDA.envioMty:0; return {sub,env,tot:sub+env}; }
+function itemAparta(x){ return x.aparta!=null?x.aparta:seAparta(P.find(p=>p.id===x.id)); }
+function totales(){ const sub=bolsa.reduce((a,x)=>a+(+x.precio||0),0); const env=entrega==='mty'?TIENDA.envioMty:0;
+  const ap=bolsa.filter(itemAparta), ant=ap.reduce((a,x)=>a+anticipo(x.precio),0), resto=ap.reduce((a,x)=>a+(+x.precio||0),0)-ant;
+  return {sub,env,tot:sub+env,aparta:ap.length>0,ant,resto,hoy:sub-resto}; }
 function pintarBolsa(){
   if(!bolsa.length){ $('#bolsaBody').innerHTML='<p class="empty">Tu bolsa está vacía.</p>'; $('#bolsaFoot').innerHTML='<button class="btn full" data-close>Seguir viendo</button>'; return; }
   const t=totales();
@@ -502,7 +519,9 @@ function pintarBolsa(){
     '<label class="lbl" style="display:block">Tu nombre <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)">(opcional)</span><input class="in" id="bNombre" value="'+esc(nombre)+'" placeholder="Para saber quién pide" autocomplete="name"></label>'+
     '<div style="margin-top:14px"><div class="tot"><span>Productos ('+bolsa.length+')</span><span>'+money(t.sub)+'</span></div>'+
     '<div class="tot"><span>Envío</span><span>'+(entrega==='mty'?money(t.env):'Por cotizar')+'</span></div>'+
-    '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div></div>';
+    '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div>'+
+    (t.aparta?'<div class="apbox"><div class="tot"><span>'+(t.hoy>t.ant?'Pagas hoy (anticipo 25% + entrega inmediata)':'Anticipo para apartar (25%)')+'</span><b>'+money(t.hoy)+'</b></div>'+
+      '<div class="tot"><span>Resto a liquidar antes del '+fechaLimite()+'</span><span>'+money(t.resto)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
   $('#bolsaFoot').innerHTML='<a class="btn wa full" id="btnPedir" target="_blank" rel="noopener">Pedir por WhatsApp</a><p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
   actualizarPedido();
 }
@@ -513,6 +532,7 @@ function mensaje(){
     '\n\nProductos: '+money(t.sub)+
     '\nEntrega: '+(entrega==='mty'?'Monterrey con chofer ('+money(t.env)+')':'Envío a otra ciudad (por cotizar)')+
     '\nTotal: '+money(t.tot)+(entrega==='mty'?'':' + envío')+
+    (t.aparta?'\nAnticipo para apartar (25%): '+money(t.hoy)+'\nResto a liquidar antes del '+fechaLimite()+': '+money(t.resto):'')+
     '\nPago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[pago];
 }
 function actualizarPedido(){ const a=$('#btnPedir'); if(a) a.href=wa(mensaje()); }
