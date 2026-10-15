@@ -47,6 +47,9 @@ img{display:block;max-width:100%}
 .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
 .hero .txt{position:relative;z-index:1;padding:24px 20px;max-width:1200px;width:100%;margin:0 auto}
 .hero small{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.85;margin-bottom:8px}
+.hero.ea::after{background:linear-gradient(to top,rgba(10,6,20,.88),rgba(10,6,20,.15) 70%)}
+.hero.ea small b{background:var(--violet);color:#fff;padding:3px 8px;border-radius:4px;letter-spacing:.12em;margin-right:8px}
+.hero.ea p{margin:-6px 0 16px;font-size:15px;opacity:.9}
 .hero h1{margin:0 0 16px;font-size:clamp(28px,8vw,52px);line-height:1;letter-spacing:-.01em;text-transform:uppercase;font-weight:800}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 22px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-weight:700;font-size:15px;text-decoration:none;white-space:nowrap}
 .btn.w{background:#fff;color:var(--ink);border-color:#fff}
@@ -439,6 +442,16 @@ function render(){
   $('#mTodo').textContent=P.length?String(P.length):'';
 }
 function renderHero(){
+  // Early Access cerrado: la portada de arriba presume el drop y pide la contraseña
+  if(typeof EA!=='undefined'&&EA.priv&&!EA.abierto&&EA.portada){
+    const d=dropDate({dropFecha:EA.fecha}), falta=d&&d>new Date();
+    $('#hero').hidden=false; $('#hero').classList.add('ea');
+    $('#hero').innerHTML='<img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>🔒 EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
+      '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>Compra antes que nadie · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
+      '<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button></div>';
+    return;
+  }
+  $('#hero').classList.remove('ea');
   const p=P.find(x=>x.destacado&&foto1(x))||P.filter(x=>x.estado==='early'&&foto1(x))[0];
   if(!p){ $('#hero').hidden=true; return; }
   $('#hero').hidden=false;
@@ -601,7 +614,7 @@ guardarBolsa(); guardarFavs();
 const t0=Date.now();
 function quitarIntro(){ const s=$('#splash'); setTimeout(()=>s.classList.add('out'),Math.max(0,1100-(Date.now()-t0))); }
 /* ---------- Early Access con contraseña: esos productos vienen cifrados en datos.json ---------- */
-const EA={priv:null,n:0,abierto:false};
+const EA={priv:null,n:0,abierto:false,portada:'',marca:'',fecha:''};
 const deB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function descifrar(pv,clave){
   const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(clave),'PBKDF2',false,['deriveKey']);
@@ -619,17 +632,18 @@ function pintarEA(){
   $('#mEarly').hidden=!EA.priv;
   $('#eaBox').innerHTML=!EA.priv||vista?'':EA.abierto
     ?'<button class="drop ea" data-ea="ver"><div><small>🔓 Early Access</small><b>Ya entraste · '+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Ver →</div></button>'
-    :'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
+    :EA.portada?'':'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
 }
 function abrirEA(){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').href=wa('Hola FITWEARMX 👋 ¿Me compartes la contraseña del Early Access?'); abrir('ovEA'); setTimeout(()=>$('#eaClave').focus(),60); }
 $('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='drops'; render(); } });
 async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='drops'; render(); toast('¡Bienvenido al Early Access!'); } }
 $('#eaEntrar').addEventListener('click',intentarEA);
+$('#hero').addEventListener('click',e=>{ if(e.target.closest('[data-ea="abrir"]')){ e.stopPropagation(); abrirEA(); } });
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
 
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
-  if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
+  if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
   renderHero(); render(); quitarIntro();
   const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&ids.has(id)) abrirProducto(id);
