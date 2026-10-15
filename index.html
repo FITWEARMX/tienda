@@ -366,6 +366,10 @@ function filtrar(){
   else r.sort((a,b)=>(b.destacado-a.destacado)||(b.creado||0)-(a.creado||0));
   return r;
 }
+/* Cada color puede tener su propio precio; si no trae, usa el del producto */
+function precioC(p,c){ return (c&&+c.precio)||p.precio; }
+function baseC(p,c){ return (c&&+c.precioBase)||p.precioBase; }
+function varia(p){ return new Set((p.colores||[]).map(c=>precioC(p,c))).size>1; }
 function cardHTML(p){
   const t=etiqueta(p), f=foto1(p), of=p.oferta&&p.precioBase>p.precio;
   const nc=(p.colores||[]).filter(c=>c.nombre).length;
@@ -373,7 +377,7 @@ function cardHTML(p){
     (t?'<span class="tag'+(t[0]?' t-'+t[0]:'')+'">'+esc(t[1])+'</span>':'')+
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
-    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
+    '<p class="pr">'+(varia(p)?'<span style="font-weight:500;font-size:13px">Desde </span>':'')+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
     (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
@@ -444,14 +448,14 @@ function cerrarProducto(){ $('#pv').hidden=true; $('#buy').hidden=true; cur=null
 $('#pvBack').addEventListener('click',()=>{ if(history.state&&history.state.p) history.back(); else cerrarProducto(); });
 window.addEventListener('popstate',()=>{ const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&P.some(p=>p.id===id)) abrirProducto(id); else cerrarProducto(); });
 function pintarProducto(){
-  const p=cur, c=curColor||{fotos:[],tallas:{}}, of=p.oferta&&p.precioBase>p.precio;
+  const p=cur, c=curColor||{fotos:[],tallas:{}}, pc=precioC(p,c), pb=baseC(p,c), of=pb>pc;
   const fs=(c.fotos&&c.fotos.length?c.fotos:[foto1(p)]).filter(Boolean);
   $('#gal').innerHTML=fs.map((f,i)=>'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+' foto '+(i+1)+'"'+(i?' loading="lazy"':'')+'>').join('')||'<img alt="">';
   $('#dots').innerHTML=fs.length>1?fs.map((_,i)=>'<i'+(i?'':' class="on"')+'></i>').join(''):'';
   $('#gal').scrollLeft=0;
   $('#pvBrand').textContent=[p.marca,p.categoria].filter(Boolean).join(' · ');
   $('#pvName').textContent=p.nombre;
-  $('#pvPrice').innerHTML=of?'<span class="rd">'+money(p.precio)+' MXN</span><s>'+money(p.precioBase)+'</s>':money(p.precio)+' MXN';
+  $('#pvPrice').innerHTML=of?'<span class="rd">'+money(pc)+' MXN</span><s>'+money(pb)+'</s>':money(pc)+' MXN';
   const est={early:['drop',p.estadoTxt||'Early Access'],preventa:['pre',p.estadoTxt||'Preventa'],camino:['cam',p.estadoTxt||'En camino'],disponible:['disp','Entrega inmediata']}[p.estado];
   $('#pvEstado').hidden=!est; if(est){ $('#pvEstado').className='estado '+est[0]; $('#pvEstado').textContent=est[1]; }
   const d=dropDate(p);
@@ -459,9 +463,9 @@ function pintarProducto(){
     :p.estado==='preventa'?'Se ordena con anticipo. Te avisamos cuando llegue.'
     :p.estado==='camino'?('Ya viene en camino'+(p.llegaFecha?', llega aprox. el '+fecha(p.llegaFecha):'')+'. Apártala desde ahora.'):'';
   $('#pvNote').hidden=!nota; $('#pvNote').textContent=nota;
-  const ap=anticipo(p.precio);
+  const ap=anticipo(pc);
   $('#pvAparta').hidden=!seAparta(p);
-  if(seAparta(p)) $('#pvAparta').innerHTML='<b>Ordena con '+money(ap)+' MXN</b><br>y tienes 3 semanas para liquidar los '+money(p.precio-ap)+' restantes (antes del '+fechaLimite()+').<small>El anticipo no es reembolsable.</small>';
+  if(seAparta(p)) $('#pvAparta').innerHTML='<b>Ordena con '+money(ap)+' MXN</b><br>y tienes 3 semanas para liquidar los '+money(pc-ap)+' restantes (antes del '+fechaLimite()+').<small>El anticipo no es reembolsable.</small>';
   const cs=(p.colores||[]).filter(x=>x.nombre);
   $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=c.nombre||'';
   $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
@@ -483,7 +487,7 @@ $('#btnAdd').addEventListener('click',()=>{
   if(p.estado==='disponible'&&!tallasConStock(p).size){ window.open(wa('Hola, ¿me avisas cuando tengas de nuevo '+p.nombre+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
   const ts=tallasDe(p,c);
   if(ts.length&&!curTalla){ $('#pvErr').hidden=false; $('#pvSizes').scrollIntoView({behavior:'smooth',block:'center'}); return; }
-  bolsa.push({aparta:seAparta(p),id:p.id,nombre:p.nombre,marca:p.marca||'',color:c.nombre||'',talla:curTalla,precio:p.precio,foto:(c.fotos&&c.fotos[0])||foto1(p),estado:p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||''});
+  bolsa.push({aparta:seAparta(p),id:p.id,nombre:p.nombre,marca:p.marca||'',color:c.nombre||'',talla:curTalla,precio:precioC(p,c),foto:(c.fotos&&c.fotos[0])||foto1(p),estado:p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||''});
   guardarBolsa(); toast('Agregado a tu bolsa'); curTalla=''; pintarProducto();
   setTimeout(()=>{ pintarBolsa(); abrir('ovBolsa'); },350);
 });
