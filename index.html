@@ -224,6 +224,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
     <button data-go="">Todo <small id="mTodo"></small></button>
     <button data-go="hombre">Hombre</button>
     <button data-go="mujer">Mujer</button>
+    <button data-go="ofertas">Ofertas y últimas tallas <small id="mOfertas"></small></button>
     <button data-go="drops">Drops y preventas</button>
     <button data-go="favs">Favoritos <small id="mFavs"></small></button>
     <button data-go="pago">Formas de pago</button>
@@ -360,7 +361,8 @@ function filtrar(){
   if(cat) r=r.filter(p=>p.categoria===cat);
   if(fMarca) r=r.filter(p=>p.marca===fMarca);
   if(fTalla) r=r.filter(p=>tallasConStock(p).has(fTalla));
-  if(fEstado) r=r.filter(p=>fEstado==='disponible'?p.estado==='disponible':p.estado!=='disponible');
+  if(fEstado==='ofertas') r=r.filter(p=>ofertasDe(p).length);
+  else if(fEstado) r=r.filter(p=>fEstado==='disponible'?p.estado==='disponible':p.estado!=='disponible');
   if(orden==='menor') r.sort((a,b)=>a.precio-b.precio);
   else if(orden==='mayor') r.sort((a,b)=>b.precio-a.precio);
   else r.sort((a,b)=>(b.destacado-a.destacado)||(b.creado||0)-(a.creado||0));
@@ -369,7 +371,19 @@ function filtrar(){
 /* Cada color puede tener su propio precio; si no trae, usa el del producto */
 function precioC(p,c){ return (c&&+c.precio)||p.precio; }
 function baseC(p,c){ return (c&&+c.precioBase)||p.precioBase; }
-function varia(p){ return new Set((p.colores||[]).map(c=>precioC(p,c))).size>1; }
+/* Ofertas: los colores más baratos que el color más caro de la misma prenda */
+function precioMax(p){ return Math.max(p.precio,...(p.colores||[]).map(c=>precioC(p,c))); }
+function ofertasDe(p){ const m=precioMax(p); return (p.colores||[]).filter(c=>precioC(p,c)<m); }
+function tallasDisp(p,c){ return tallasDe(p,c).filter(t=>hay(p,c,t)); }
+function ofertaHTML(p,c){
+  const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=precioMax(p), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
+  return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'" data-color="'+esc(c.k)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre+' '+c.nombre)+'" loading="lazy">':'')+
+    '<span class="tag t-of">Oferta'+(ts.length&&ts.length<=2?' · Solo '+esc(ts.join(', ')):'')+'</span></div>'+
+    '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,c.nombre].filter(Boolean).join(' · '))+'</p>'+
+    '<p class="pr"><span class="rd">'+money(pc)+'</span><s>'+money(mx)+'</s></p>'+
+    '<p class="ap" style="color:var(--red)">Ahorras '+money(mx-pc)+' (-'+menos+'%)</p>'+
+    (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(pc))+' MXN</p>':'')+'</div>';
+}
 function cardHTML(p){
   const t=etiqueta(p), f=foto1(p), of=p.oferta&&p.precioBase>p.precio;
   const nc=(p.colores||[]).filter(c=>c.nombre).length;
@@ -377,7 +391,7 @@ function cardHTML(p){
     (t?'<span class="tag'+(t[0]?' t-'+t[0]:'')+'">'+esc(t[1])+'</span>':'')+
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
-    '<p class="pr">'+(varia(p)?'<span style="font-weight:500;font-size:13px">Desde </span>':'')+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
+    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
     (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
@@ -388,8 +402,15 @@ function render(){
   $('#cats').innerHTML=cats.length>1?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo</button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+'" data-cat="'+esc(c)+'">'+esc(c)+'</button>')).join(''):'';
   const prox=P.filter(p=>p.estado==='early'&&dropDate(p)&&dropDate(p)>new Date()).sort((a,b)=>dropDate(a)-dropDate(b))[0];
   $('#dropBox').innerHTML=prox&&!vista?'<button class="drop" data-id="'+esc(prox.id)+'"><div><small>'+esc(prox.estadoTxt||'Próximo drop')+'</small><b>'+esc([prox.marca,prox.nombre].filter(Boolean).join(' '))+'</b></div><div class="cd" data-cd="'+esc(prox.dropFecha)+'">'+cuenta(dropDate(prox))+'</div></button>':'';
-  $('#titulo').hidden=!vista; $('#titulo').textContent=vista==='favs'?'Favoritos':vista==='drops'?'Drops y preventas':'';
+  $('#titulo').hidden=!vista; $('#titulo').textContent=vista==='favs'?'Favoritos':vista==='drops'?'Drops y preventas':vista==='ofertas'?'Ofertas y últimas tallas':'';
   const r=filtrar();
+  $('#mOfertas').textContent=(n=>n?String(n):'')(P.reduce((a,p)=>a+ofertasDe(p).length,0));
+  if(vista==='ofertas'||fEstado==='ofertas'){
+    const of=[]; r.forEach(p=>ofertasDe(p).forEach(c=>of.push([p,c])));
+    $('#cuenta').textContent=of.length===1?'1 oferta':of.length+' ofertas';
+    $('#grid').innerHTML=of.length?of.map(x=>ofertaHTML(x[0],x[1])).join(''):'<p class="empty" style="grid-column:1/-1">Por ahora no hay ofertas. Revisa pronto, cambian seguido.</p>';
+    $('#mTodo').textContent=P.length?String(P.length):''; return;
+  }
   $('#cuenta').textContent=r.length===1?'1 producto':r.length+' productos';
   $('#grid').innerHTML=r.length?r.map(cardHTML).join(''):'<p class="empty" style="grid-column:1/-1">'+(vista==='favs'?'Todavía no tienes favoritos. Toca el corazón de una prenda para guardarla.':P.length?'No hay productos con esos filtros.':'Muy pronto subiremos productos nuevos. Síguenos en Instagram.')+'</p>';
   $('#mTodo').textContent=P.length?String(P.length):'';
@@ -406,9 +427,9 @@ $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]');
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
   if(fv){ e.stopPropagation(); const id=fv.dataset.fav; if(favs.has(id)) favs.delete(id); else { favs.add(id); toast('Guardado en favoritos'); } guardarFavs(); fv.classList.toggle('on',favs.has(id)); return; }
-  const c=e.target.closest('[data-id]'); if(c&&!c.closest('.ov')) abrirProducto(c.dataset.id);
+  const c=e.target.closest('[data-id]'); if(c&&!c.closest('.ov')) abrirProducto(c.dataset.id,c.dataset.color);
 });
-document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.classList.contains('card')) abrirProducto(e.target.dataset.id); });
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.classList.contains('card')) abrirProducto(e.target.dataset.id,e.target.dataset.color); });
 setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{ const p={dropFecha:el.dataset.cd}; const d=dropDate(p); if(d) el.textContent=cuenta(d); }),30000);
 
 /* ---------- menú, búsqueda y filtros ---------- */
@@ -416,7 +437,7 @@ $('#btnMenu').addEventListener('click',()=>abrir('ovMenu'));
 $('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; render(); window.scrollTo(0,0); });
 $('#ovMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(!b) return; const g=b.dataset.go; cerrar('ovMenu');
   if(g==='pago'){ pintarPago(); abrir('ovPago'); return; }
-  if(g==='favs'||g==='drops'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
+  if(g==='favs'||g==='drops'||g==='ofertas'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
   cat=''; render(); document.getElementById('tabs').scrollIntoView({behavior:'smooth'}); });
 $('#btnBuscar').addEventListener('click',()=>{ abrir('ovBuscar'); $('#q').value=''; buscar(); setTimeout(()=>$('#q').focus(),60); });
 function buscar(){ const q=$('#q').value.toLowerCase().trim(); const r=q?P.filter(p=>[p.nombre,p.marca,p.categoria,(p.colores||[]).map(c=>c.nombre).join(' ')].join(' ').toLowerCase().includes(q)):[];
@@ -429,7 +450,7 @@ function pintarFiltros(){
   const ts=new Set(); P.forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
   chips($('#fTalla'),[['','Todas']].concat([...ts].sort((a,b)=>{const i=ORDEN_T.indexOf(a),j=ORDEN_T.indexOf(b);return (i<0?99:i)-(j<0?99:j)||parseFloat(a)-parseFloat(b);}).map(t=>[t,t])),fTalla,'t');
   chips($('#fMarca'),[['','Todas']].concat([...new Set(P.map(p=>p.marca).filter(Boolean))].sort().map(m=>[m,m])),fMarca,'m');
-  chips($('#fEstado'),[['','Todo'],['disponible','Entrega inmediata'],['proximo','Drops y preventas']],fEstado,'e');
+  chips($('#fEstado'),[['','Todo'],['disponible','Entrega inmediata'],['proximo','Drops y preventas'],['ofertas','Ofertas y últimas tallas']],fEstado,'e');
 }
 $('#btnFiltrar').addEventListener('click',()=>{ pintarFiltros(); abrir('ovFiltro'); });
 $('#ovFiltro').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return;
@@ -438,9 +459,9 @@ $('#ovFiltro').addEventListener('click',e=>{ const b=e.target.closest('.chip'); 
 $('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; fTalla=''; fMarca=''; fEstado=''; pintarFiltros(); render(); });
 
 /* ---------- producto ---------- */
-function abrirProducto(id){
+function abrirProducto(id,colorK){
   const p=P.find(x=>x.id===id); if(!p) return;
-  cur=p; curColor=(p.colores||[])[0]||null; curTalla='';
+  cur=p; curColor=(colorK&&(p.colores||[]).find(c=>c.k===colorK))||(p.colores||[])[0]||null; curTalla='';
   try{ history.pushState({p:id},'','#'+encodeURIComponent(id)); }catch(e){}
   pintarProducto(); $('#pv').hidden=false; $('#buy').hidden=false; $('#pv').scrollTop=0; document.body.style.overflow='hidden';
 }
