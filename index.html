@@ -374,7 +374,7 @@ function cardHTML(p){
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
     '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
-    (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+'</p>':'')+'</div>';
+    (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
@@ -461,7 +461,7 @@ function pintarProducto(){
   $('#pvNote').hidden=!nota; $('#pvNote').textContent=nota;
   const ap=anticipo(p.precio);
   $('#pvAparta').hidden=!seAparta(p);
-  if(seAparta(p)) $('#pvAparta').innerHTML='<b>Ordena con '+money(ap)+'</b> (25%)<br>Liquidas los '+money(p.precio-ap)+' restantes antes del '+fechaLimite()+' (3 semanas).<small>El anticipo no es reembolsable.</small>';
+  if(seAparta(p)) $('#pvAparta').innerHTML='<b>Ordena con '+money(ap)+' MXN</b><br>y tienes 3 semanas para liquidar los '+money(p.precio-ap)+' restantes (antes del '+fechaLimite()+').<small>El anticipo no es reembolsable.</small>';
   const cs=(p.colores||[]).filter(x=>x.nombre);
   $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=c.nombre||'';
   $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
@@ -520,8 +520,8 @@ function pintarBolsa(){
     '<div style="margin-top:14px"><div class="tot"><span>Productos ('+bolsa.length+')</span><span>'+money(t.sub)+'</span></div>'+
     '<div class="tot"><span>Envío</span><span>'+(entrega==='mty'?money(t.env):'Por cotizar')+'</span></div>'+
     '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div>'+
-    (t.aparta?'<div class="apbox"><div class="tot"><span>'+(t.hoy>t.ant?'Pagas hoy (anticipo 25% + entrega inmediata)':'Anticipo para ordenar (25%)')+'</span><b>'+money(t.hoy)+'</b></div>'+
-      '<div class="tot"><span>Resto a liquidar antes del '+fechaLimite()+'</span><span>'+money(t.resto)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
+    (t.aparta?'<div class="apbox"><div class="tot"><span>'+(t.hoy>t.ant?'Pagas hoy (anticipo + entrega inmediata)':'Ordena con')+'</span><b>'+money(t.hoy)+'</b></div>'+
+      '<div class="tot"><span>Resto a liquidar en 3 semanas (antes del '+fechaLimite()+')</span><span>'+money(t.resto)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
   $('#bolsaFoot').innerHTML='<a class="btn wa full" id="btnPedir" target="_blank" rel="noopener">Pedir por WhatsApp</a><p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
   actualizarPedido();
 }
@@ -532,7 +532,7 @@ function mensaje(){
     '\n\nProductos: '+money(t.sub)+
     '\nEntrega: '+(entrega==='mty'?'Monterrey con chofer ('+money(t.env)+')':'Envío a otra ciudad (por cotizar)')+
     '\nTotal: '+money(t.tot)+(entrega==='mty'?'':' + envío')+
-    (t.aparta?'\nAnticipo para ordenar (25%): '+money(t.hoy)+'\nResto a liquidar antes del '+fechaLimite()+': '+money(t.resto):'')+
+    (t.aparta?'\nOrdena con: '+money(t.hoy)+' MXN\nResto a liquidar en 3 semanas (antes del '+fechaLimite()+'): '+money(t.resto):'')+
     '\nPago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[pago];
 }
 function actualizarPedido(){ const a=$('#btnPedir'); if(a) a.href=wa(mensaje()); }
