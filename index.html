@@ -378,10 +378,12 @@ function precioC(p,c){ return (c&&+c.precio)||p.precio; }
 function baseC(p,c){ return (c&&+c.precioBase)||p.precioBase; }
 /* Ofertas: los colores más baratos que el color más caro de la misma prenda */
 function precioMax(p){ return Math.max(p.precio,...(p.colores||[]).map(c=>precioC(p,c))); }
-function ofertasDe(p){ const m=precioMax(p); return (p.colores||[]).filter(c=>!c.agotado&&precioC(p,c)<m); }
+// precio "antes" de un color: el de la rebaja de la marca o el del color más caro de la prenda (el que sea mayor)
+function antesC(p,c){ return Math.max(precioMax(p),+(c&&c.precioAntes)||0); }
+function ofertasDe(p){ return (p.colores||[]).filter(c=>!c.agotado&&precioC(p,c)<antesC(p,c)); }
 function tallasDisp(p,c){ return tallasDe(p,c).filter(t=>hay(p,c,t)); }
 function ofertaHTML(p,c){
-  const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=precioMax(p), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
+  const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=antesC(p,c), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
   return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'" data-color="'+esc(c.k)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre+' '+c.nombre)+'" loading="lazy">':'')+
     '<span class="tag t-of">Oferta'+(ts.length&&ts.length<=2?' · Solo '+esc(ts.join(', ')):'')+'</span></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,c.nombre].filter(Boolean).join(' · '))+'</p>'+
@@ -390,13 +392,14 @@ function ofertaHTML(p,c){
     (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(pc))+' MXN</p>':'')+'</div>';
 }
 function cardHTML(p){
-  const t=etiqueta(p), f=foto1(p), of=p.oferta&&p.precioBase>p.precio;
+  const c0=(p.colores||[])[0], reb=+(c0&&c0.precioAntes)||0;
+  const t=etiqueta(p), f=foto1(p), of=(p.oferta&&p.precioBase>p.precio)||reb>p.precio, antes=Math.max(p.precioBase||0,reb);
   const nc=(p.colores||[]).filter(c=>c.nombre).length;
   return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+'" loading="lazy">':'')+
     (t?'<span class="tag'+(t[0]?' t-'+t[0]:'')+'">'+esc(t[1])+'</span>':'')+
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
-    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
+    '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(antes)+'</s>':money(p.precio))+'</p>'+
     (seAparta(p)&&!todoAgotado(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
@@ -474,7 +477,7 @@ function cerrarProducto(){ $('#pv').hidden=true; $('#buy').hidden=true; cur=null
 $('#pvBack').addEventListener('click',()=>{ if(history.state&&history.state.p) history.back(); else cerrarProducto(); });
 window.addEventListener('popstate',()=>{ const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&P.some(p=>p.id===id)) abrirProducto(id); else cerrarProducto(); });
 function pintarProducto(){
-  const p=cur, c=curColor||{fotos:[],tallas:{}}, pc=precioC(p,c), pb=baseC(p,c), of=pb>pc;
+  const p=cur, c=curColor||{fotos:[],tallas:{}}, pc=precioC(p,c), pb=Math.max(baseC(p,c),+c.precioAntes||0), of=pb>pc;
   const fs=(c.fotos&&c.fotos.length?c.fotos:[foto1(p)]).filter(Boolean);
   $('#gal').innerHTML=fs.map((f,i)=>'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+' foto '+(i+1)+'"'+(i?' loading="lazy"':'')+'>').join('')||'<img alt="">';
   $('#dots').innerHTML=fs.length>1?fs.map((_,i)=>'<i'+(i?'':' class="on"')+'></i>').join(''):'';
