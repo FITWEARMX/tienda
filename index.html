@@ -62,6 +62,7 @@ img{display:block;max-width:100%}
 .cats::-webkit-scrollbar{display:none}
 .chip{flex-shrink:0;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font-weight:600;font-size:13px;white-space:nowrap}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip.agot{color:#a0a0a5;text-decoration:line-through;background:var(--soft)}.chip.agot.on{background:#6b6b70;color:#e8e8ea;border-color:#6b6b70}
 .drop{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--ink);border-radius:14px;padding:12px 14px;margin:10px 0 4px;cursor:pointer;background:#fff;width:100%;text-align:left}
 .drop small{display:block;font-size:11px;letter-spacing:.12em;color:var(--violet);font-weight:800;text-transform:uppercase}
 .drop b{font-size:14px}
@@ -310,7 +311,7 @@ const seAparta=p=>!!p&&p.estado!=='disponible';
 function fechaLimite(){ const d=new Date(Date.now()+DIAS_LIQUIDAR*864e5); return d.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][d.getMonth()]; }
 const MESES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-const ORDEN_T=['XS','S','M','L','XL','2XL','3XL'];
+const ORDEN_T=['XXS','XS','S','M','L','XL','2XL','3XL','4XL'];
 const LS={get(k,d){try{return JSON.parse(localStorage.getItem('fwmx_'+k))??d;}catch(e){return d;}},set(k,v){try{localStorage.setItem('fwmx_'+k,JSON.stringify(v));}catch(e){}}};
 const wa=t=>'https://wa.me/'+TIENDA.whatsapp+'?text='+encodeURIComponent(t);
 const ig='https://www.instagram.com/'+TIENDA.instagram+'/';
@@ -326,10 +327,14 @@ function hora(d){ let h=d.getHours(),ap=h<12?'am':'pm'; h=h%12||12; return h+':'
 function cuenta(d){ const ms=d-new Date(); if(ms<=0) return 'Ya salió'; const D=Math.floor(ms/864e5),H=Math.floor(ms%864e5/36e5),M=Math.floor(ms%36e5/6e4); return (D?D+'d ':'')+String(H).padStart(2,'0')+'h '+String(M).padStart(2,'0')+'m'; }
 function tallasDe(p,c){ const t=(c||{}).tallas||{}; return Object.keys(t).sort((a,b)=>{ const i=ORDEN_T.indexOf(a),j=ORDEN_T.indexOf(b); if(i>=0&&j>=0) return i-j; if(i>=0) return -1; if(j>=0) return 1; return parseFloat(a)-parseFloat(b)||a.localeCompare(b); }); }
 function hay(p,c,t){ return p.estado!=='disponible'||(+((c.tallas||{})[t])||0)>0; }
+/* Agotado en la marca: el color sale tachado; las tallas agotadas también */
+function todoAgotado(p){ const cs=p.colores||[]; return cs.length>0&&cs.every(c=>c.agotado); }
+function ordenaT(a){ return a.slice().sort((x,y)=>{ const i=ORDEN_T.indexOf(x),j=ORDEN_T.indexOf(y); return (i<0?99:i)-(j<0?99:j)||String(x).localeCompare(y); }); }
 function tallasConStock(p){ const s=new Set(); (p.colores||[]).forEach(c=>tallasDe(p,c).forEach(t=>{ if(hay(p,c,t)) s.add(t); })); return s; }
 function foto1(p){ for(const c of p.colores||[]) if(c.fotos&&c.fotos[0]) return c.fotos[0]; return ''; }
 function esNuevo(p){ return p.estado==='disponible'&&p.creado&&(Date.now()-p.creado<14*864e5); }
 function etiqueta(p){
+  if(todoAgotado(p)) return ['','Agotado'];
   if(p.oferta&&p.precioBase>p.precio) return ['of','Oferta'];
   if(p.estado==='early') return ['drop',p.estadoTxt||'Drop'];
   if(p.estado==='preventa') return ['pre',p.estadoTxt||'Preventa'];
@@ -373,7 +378,7 @@ function precioC(p,c){ return (c&&+c.precio)||p.precio; }
 function baseC(p,c){ return (c&&+c.precioBase)||p.precioBase; }
 /* Ofertas: los colores más baratos que el color más caro de la misma prenda */
 function precioMax(p){ return Math.max(p.precio,...(p.colores||[]).map(c=>precioC(p,c))); }
-function ofertasDe(p){ const m=precioMax(p); return (p.colores||[]).filter(c=>precioC(p,c)<m); }
+function ofertasDe(p){ const m=precioMax(p); return (p.colores||[]).filter(c=>!c.agotado&&precioC(p,c)<m); }
 function tallasDisp(p,c){ return tallasDe(p,c).filter(t=>hay(p,c,t)); }
 function ofertaHTML(p,c){
   const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=precioMax(p), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
@@ -392,7 +397,7 @@ function cardHTML(p){
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
     '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
     '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(p.precioBase)+'</s>':money(p.precio))+'</p>'+
-    (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
+    (seAparta(p)&&!todoAgotado(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
@@ -488,15 +493,16 @@ function pintarProducto(){
   $('#pvAparta').hidden=!seAparta(p);
   if(seAparta(p)) $('#pvAparta').innerHTML='<b>Ordena con '+money(ap)+' MXN</b><br>y tienes 3 semanas para liquidar los '+money(pc-ap)+' restantes (antes del '+fechaLimite()+').<small>El anticipo no es reembolsable.</small>';
   const cs=(p.colores||[]).filter(x=>x.nombre);
-  $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=c.nombre||'';
-  $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
-  const ts=tallasDe(p,c);
-  $('#pvSizes').innerHTML=ts.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
+  $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=(c.nombre||'')+(c.agotado?' · Agotado':'');
+  $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+(x.agotado?' agot':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
+  const ts=tallasDe(p,c), todas=ordenaT(ts.concat((c.agotadas||[]).filter(t=>!ts.includes(t))));
+  $('#pvSizes').innerHTML=todas.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(ts.includes(t)&&hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
+  if(c.agotado){ $('#pvAparta').hidden=true; $('#pvNote').hidden=true; }
   $('#pvErr').hidden=true; $('#pvDesc').textContent=p.descripcion||'';
   $('#pvFav').classList.toggle('on',favs.has(p.id));
   $('#pvFav').querySelector('svg').style.fill=favs.has(p.id)?'#0b0b0c':'none';
   const sinStock=p.estado==='disponible'&&!tallasConStock(p).size;
-  $('#btnAdd').textContent=sinStock?'Preguntar por WhatsApp':p.estado==='early'?'Ordenar en la bolsa':'Agregar a la bolsa';
+  $('#btnAdd').textContent=c.agotado?'Agotado · Avísame cuando regrese':sinStock?'Preguntar por WhatsApp':p.estado==='early'?'Ordenar en la bolsa':'Agregar a la bolsa';
 }
 $('#gal').addEventListener('scroll',()=>{ const g=$('#gal'), i=Math.round(g.scrollLeft/g.clientWidth); document.querySelectorAll('#dots i').forEach((d,j)=>d.classList.toggle('on',i===j)); },{passive:true});
 $('#pvColors').addEventListener('click',e=>{ const b=e.target.closest('[data-color]'); if(!b) return; curColor=cur.colores.find(x=>x.k===b.dataset.color); curTalla=''; pintarProducto(); });
@@ -505,6 +511,7 @@ $('#pvFav').addEventListener('click',()=>{ if(!cur) return; if(favs.has(cur.id))
 $('#btnAdd').addEventListener('click',()=>{
   const p=cur; if(!p) return;
   const c=curColor||{};
+  if(c.agotado){ window.open(wa('Hola, ¿me avisas cuando regrese '+p.nombre+(c.nombre?' en '+c.nombre:'')+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
   if(p.estado==='disponible'&&!tallasConStock(p).size){ window.open(wa('Hola, ¿me avisas cuando tengas de nuevo '+p.nombre+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
   const ts=tallasDe(p,c);
   if(ts.length&&!curTalla){ $('#pvErr').hidden=false; $('#pvSizes').scrollIntoView({behavior:'smooth',block:'center'}); return; }
