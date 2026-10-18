@@ -593,7 +593,9 @@ function laminas(){
   PORTADA.forEach(n=>{ L[n.id]='<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
     '<div class="txt"><small>Lo que viene</small><h1>'+esc(n.titulo)+'</h1>'+(n.texto?'<p>'+esc(n.texto)+'</p>':'')+
     (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'; });
-  const p=P.find(x=>x.destacado&&foto1(x))||P.filter(x=>x.estado==='early'&&foto1(x))[0];
+  // destacado: el que marcaste con ⭐; si no hay, un drop, pero nunca uno que ya sale en la lámina del Early Access
+  const yaEnEA=p=>!!L.ea&&EA.ids.has(p.id);
+  const p=P.find(x=>x.destacado&&foto1(x)&&!yaEnEA(x))||(L.ea?null:P.filter(x=>x.estado==='early'&&foto1(x))[0]);
   if(p){ const tit=p.estado==='early'?(p.estadoTxt||'Nuevo drop'):p.estado==='preventa'?'Preventa':'Destacado';
     L.destacado='<div class="sl" data-id="'+esc(p.id)+'"><img src="'+esc(foto1(p))+'" alt=""><div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w">Ver ahora</button></div></div>'; }
   const orden=Array.isArray(ORDEN_PORTADA)?ORDEN_PORTADA:['ea'].concat(PORTADA.map(n=>n.id),['destacado']);
