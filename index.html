@@ -66,6 +66,27 @@ img{display:block;max-width:100%}
 .chip{flex-shrink:0;border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font-weight:600;font-size:13px;white-space:nowrap}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .chip.agot{color:#a0a0a5;text-decoration:line-through;background:var(--soft)}.chip.agot.on{background:#6b6b70;color:#e8e8ea;border-color:#6b6b70}
+/* marcas: franja de logos */
+.marcas{display:flex;gap:10px;overflow-x:auto;padding:14px 16px 4px;scrollbar-width:none;max-width:1200px;margin:0 auto}
+.marcas::-webkit-scrollbar{display:none}
+.mk{flex-shrink:0;width:128px;height:58px;border-radius:12px;background:#111113;border:2px solid #111113;display:grid;place-items:center;padding:10px 14px;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.mk img{max-width:100%;max-height:30px;object-fit:contain}
+.mk.alta img{max-height:40px}
+.mk span{color:#fff;font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;text-align:center;line-height:1.1}
+.mk.on{border-color:var(--ink);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ink)}
+.marcas.sel .mk:not(.on){opacity:.45}
+.chip.cero{color:#b4b4b8;border-style:dashed}
+.chip small{font-weight:500;opacity:.6;margin-left:4px}
+.grupo{display:flex;align-items:center;gap:12px;margin:22px 0 12px;padding-top:16px;border-top:1px solid var(--line)}
+.grupo:first-child{border-top:0;padding-top:0;margin-top:6px}
+.grupo .mk{width:96px;height:42px;padding:7px 10px;cursor:default}
+.grupo .mk img{max-height:22px}.grupo .mk.alta img{max-height:30px}
+.grupo b{font-size:17px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grupo button{all:unset;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap}
+.selM{display:flex;align-items:center;gap:10px;margin:8px 0 0}
+.selM .mk{width:96px;height:42px;padding:7px 10px;cursor:default}.selM .mk img{max-height:22px}.selM .mk.alta img{max-height:30px}
+.selM b{font-size:22px;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
+.selM button{all:unset;cursor:pointer;font-size:13px;color:var(--muted);text-decoration:underline}
 .drop{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--ink);border-radius:14px;padding:12px 14px;margin:10px 0 4px;cursor:pointer;background:#fff;width:100%;text-align:left}
 .drop small{display:block;font-size:11px;letter-spacing:.12em;color:var(--violet);font-weight:800;text-transform:uppercase}
 .drop b{font-size:14px}
@@ -201,11 +222,13 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
   <nav class="tabs" id="tabs" aria-label="Línea">
     <button data-linea="" class="on">Todo</button><button data-linea="hombre">Hombre</button><button data-linea="mujer">Mujer</button>
   </nav>
+  <div class="marcas" id="marcas" role="group" aria-label="Marcas"></div>
   <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
   <div class="wrap">
     <div id="dropBox"></div>
     <div id="eaBox"></div>
     <h2 class="title" id="titulo" hidden></h2>
+    <div class="selM" id="selM" hidden></div>
     <div class="bar"><button id="btnFiltrar"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Filtrar y ordenar</button><span id="cuenta"></span></div>
     <div class="grid" id="grid"></div>
   </div>
@@ -333,6 +356,25 @@ const LS={get(k,d){try{return JSON.parse(localStorage.getItem('fwmx_'+k))??d;}ca
 const wa=t=>'https://wa.me/'+TIENDA.whatsapp+'?text='+encodeURIComponent(t);
 const ig='https://www.instagram.com/'+TIENDA.instagram+'/';
 
+/* Marcas: cada una con su logo. alias = cómo puede venir escrita */
+const MARCAS=[
+  {k:'youngla',n:'YoungLA',logo:'logos/youngla.png',re:/young\s*la/i},
+  {k:'gymshark',n:'Gymshark',logo:'logos/gymshark.png',re:/gym\s*shark/i},
+  {k:'breathe-divinity',n:'Breathe Divinity',logo:'logos/breathe-divinity.png',re:/breathe\s*divinity/i},
+  {k:'darc-sport',n:'Darc Sport',logo:'logos/darc-sport.png',re:/darc\s*sport/i,alta:1},
+  {k:'civil-regime',n:'Civil Regime',logo:'logos/civil-regime.png',re:/civil\s*(regime|clothing)/i,alta:1},
+  {k:'dfyne',n:'DFYNE',logo:'logos/dfyne.png',re:/^dfyne/i},
+  {k:'controlled-insanity',n:'Controlled Insanity',logo:'logos/controlled-insanity.png',re:/controlled\s*insanity/i},
+  {k:'aybl',n:'AYBL',logo:'logos/aybl.png',re:/^aybl/i}
+];
+const slug=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+function marcaDe(p){ const m=String(p.marca||'').trim(); const x=MARCAS.find(o=>o.re.test(m)); return x?x.n:m; }
+function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
+function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
+// orden de las marcas: el de tu franja; las que no estén en la lista, al final
+function ordenMarcas(ns){ return [...new Set(ns)].filter(Boolean).sort((a,b)=>{ const i=MARCAS.findIndex(o=>o.n===a),j=MARCAS.findIndex(o=>o.n===b); return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b); }); }
+/* Categorías: estas siempre salen; las demás solo si hay productos */
+const CATS_FIJAS=['Playeras','Shorts','Pants','Hoodies','Chamarras','Compresión','Accesorios'];
 let P=[], linea=LS.get('linea',''), cat='', vista='', orden='nuevo', fTalla='', fMarca='', fEstado='';
 let favs=new Set(LS.get('favs',[])), bolsa=LS.get('bolsa',[]);
 let cur=null, curColor=null, curTalla='';
@@ -379,9 +421,10 @@ function filtrar(){
   let r=P.slice();
   if(vista==='favs') r=r.filter(p=>favs.has(p.id));
   else if(vista==='drops') r=r.filter(p=>p.estado==='early'||p.estado==='preventa'||p.estado==='camino');
+  else if(vista==='ea') r=r.filter(p=>EA.ids.has(p.id));
   if(linea) r=r.filter(p=>!p.linea||p.linea===linea||p.linea==='unisex');
   if(cat) r=r.filter(p=>p.categoria===cat);
-  if(fMarca) r=r.filter(p=>p.marca===fMarca);
+  if(fMarca) r=r.filter(p=>marcaDe(p)===fMarca);
   if(fTalla) r=r.filter(p=>tallasConStock(p).has(fTalla));
   if(fEstado==='ofertas') r=r.filter(p=>ofertasDe(p).length);
   else if(fEstado) r=r.filter(p=>fEstado==='disponible'?p.estado==='disponible':p.estado!=='disponible');
@@ -403,7 +446,7 @@ function ofertaHTML(p,c){
   const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=antesC(p,c), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
   return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'" data-color="'+esc(c.k)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre+' '+c.nombre)+'" loading="lazy">':'')+
     '<span class="tag t-of">Oferta'+(ts.length&&ts.length<=2?' · Solo '+esc(ts.join(', ')):'')+'</span></div>'+
-    '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,c.nombre].filter(Boolean).join(' · '))+'</p>'+
+    '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([marcaDe(p),c.nombre].filter(Boolean).join(' · '))+'</p>'+
     '<p class="pr"><span class="rd">'+money(pc)+'</span><s>'+money(mx)+'</s></p>'+
     '<p class="ap" style="color:var(--red)">Ahorras '+money(mx-pc)+' (-'+menos+'%)</p>'+
     (seAparta(p)?'<p class="ap">Ordena con '+money(anticipo(pc))+' MXN</p>':'')+'</div>';
@@ -415,32 +458,56 @@ function cardHTML(p){
   return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+'" loading="lazy">':'')+
     (t?'<span class="tag'+(t[0]?' t-'+t[0]:'')+'">'+esc(t[1])+'</span>':'')+
     '<button class="fav'+(favs.has(p.id)?' on':'')+'" data-fav="'+esc(p.id)+'" aria-label="Favorito"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>'+
-    '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([p.marca,nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
+    '<p class="nm">'+esc(p.nombre)+'</p><p class="br">'+esc([marcaDe(p),nc>1?nc+' colores':''].filter(Boolean).join(' · '))+'</p>'+
     '<p class="pr">'+(of?'<span class="rd">'+money(p.precio)+'</span><s>'+money(antes)+'</s>':money(p.precio))+'</p>'+
     (seAparta(p)&&!todoAgotado(p)?'<p class="ap">Ordena con '+money(anticipo(p.precio))+' MXN</p>':'')+'</div>';
 }
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
   const base=P.filter(p=>!linea||!p.linea||p.linea===linea||p.linea==='unisex');
-  const cats=[...new Set(base.map(p=>p.categoria).filter(Boolean))];
-  if(cat&&!cats.includes(cat)) cat='';
-  $('#cats').innerHTML=cats.length>1?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo</button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+'" data-cat="'+esc(c)+'">'+esc(c)+'</button>')).join(''):'';
+  pintarMarcas(base);
+  // las categorías cuentan solo lo de la marca elegida
+  const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&(vista!=='ea'||EA.ids.has(p.id)));
+  const n={}; enMarca.forEach(p=>{ if(p.categoria) n[p.categoria]=(n[p.categoria]||0)+1; });
+  const cats=CATS_FIJAS.concat(Object.keys(n).filter(c=>!CATS_FIJAS.includes(c)).sort());
+  if(cat&&!n[cat]&&!CATS_FIJAS.includes(cat)) cat='';
+  $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+enMarca.length+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
+  $('#selM').hidden=!fMarca; $('#selM').innerHTML=fMarca?logoHTML(fMarca)+'<b>'+esc(fMarca)+'</b><button data-quitar-marca>Ver todas las marcas</button>':'';
+  ponerLink();
   const prox=P.filter(p=>p.estado==='early'&&dropDate(p)&&dropDate(p)>new Date()).sort((a,b)=>dropDate(a)-dropDate(b))[0];
   $('#dropBox').innerHTML=prox&&!vista?'<button class="drop" data-id="'+esc(prox.id)+'"><div><small>'+esc(prox.estadoTxt||'Próximo drop')+'</small><b>'+esc([prox.marca,prox.nombre].filter(Boolean).join(' '))+'</b></div><div class="cd" data-cd="'+esc(prox.dropFecha)+'">'+cuenta(dropDate(prox))+'</div></button>':'';
   if(typeof pintarEA==='function') pintarEA();
-  $('#titulo').hidden=!vista; $('#titulo').textContent=vista==='favs'?'Favoritos':vista==='drops'?'Drops y preventas':vista==='ofertas'?'Ofertas y últimas tallas':'';
+  $('#titulo').hidden=!vista; $('#titulo').textContent=vista==='favs'?'Favoritos':vista==='drops'?'Drops y preventas':vista==='ea'?'🔓 Early Access':vista==='ofertas'?'Ofertas y últimas tallas':'';
   const r=filtrar();
   $('#mOfertas').textContent=(n=>n?String(n):'')(P.reduce((a,p)=>a+ofertasDe(p).length,0));
   if(vista==='ofertas'||fEstado==='ofertas'){
     const of=[]; r.forEach(p=>ofertasDe(p).forEach(c=>of.push([p,c])));
     $('#cuenta').textContent=of.length===1?'1 oferta':of.length+' ofertas';
-    $('#grid').innerHTML=of.length?of.map(x=>ofertaHTML(x[0],x[1])).join(''):'<p class="empty" style="grid-column:1/-1">Por ahora no hay ofertas. Revisa pronto, cambian seguido.</p>';
+    $('#grid').innerHTML=of.length?(fMarca?of.map(x=>ofertaHTML(x[0],x[1])).join(''):porMarca(of,x=>ofertaHTML(x[0],x[1]),x=>x[0])):'<p class="empty" style="grid-column:1/-1">Por ahora no hay ofertas. Revisa pronto, cambian seguido.</p>';
     $('#mTodo').textContent=P.length?String(P.length):''; return;
   }
   $('#cuenta').textContent=r.length===1?'1 producto':r.length+' productos';
-  $('#grid').innerHTML=r.length?r.map(cardHTML).join(''):'<p class="empty" style="grid-column:1/-1">'+(vista==='favs'?'Todavía no tienes favoritos. Toca el corazón de una prenda para guardarla.':P.length?'No hay productos con esos filtros.':'Muy pronto subiremos productos nuevos. Síguenos en Instagram.')+'</p>';
+  $('#grid').innerHTML=r.length?(fMarca||vista==='favs'?r.map(cardHTML).join(''):porMarca(r,cardHTML)):'<p class="empty" style="grid-column:1/-1">'+(vista==='favs'?'Todavía no tienes favoritos. Toca el corazón de una prenda para guardarla.':P.length?'No hay productos con esos filtros.':'Muy pronto subiremos productos nuevos. Síguenos en Instagram.')+'</p>';
   $('#mTodo').textContent=P.length?String(P.length):'';
 }
+/* Cada marca en su propio bloque, con su logo: nada revuelto */
+function porMarca(r,pinta,prod){ prod=prod||(x=>x); const g={}; r.forEach(x=>{ const m=marcaDe(prod(x))||'Otras'; (g[m]=g[m]||[]).push(x); });
+  return ordenMarcas(Object.keys(g)).map(m=>'<div class="grupo" style="grid-column:1/-1">'+logoHTML(m)+'<b>'+esc(m)+'</b><button data-ver-marca="'+esc(m)+'">Ver todo →</button></div>'+g[m].map(pinta).join('')).join(''); }
+function pintarMarcas(base){
+  const ms=ordenMarcas(base.filter(p=>vista!=='ea'||EA.ids.has(p.id)).map(marcaDe));
+  if(fMarca&&!ms.includes(fMarca)) fMarca='';
+  $('#marcas').classList.toggle('sel',!!fMarca);
+  $('#marcas').innerHTML=ms.length>1||fMarca?ms.map(m=>'<button class="mk'+(infoMarca(m).alta?' alta':'')+(fMarca===m?' on':'')+'" data-marca="'+esc(m)+'" aria-pressed="'+(fMarca===m)+'" title="'+esc(m)+'">'+(infoMarca(m).logo?'<img src="'+esc(infoMarca(m).logo)+'" alt="'+esc(m)+'">':'<span>'+esc(m)+'</span>')+'</button>').join(''):'';
+}
+/* Cada filtro tiene su link: #gymshark, #gymshark/shorts, #shorts */
+let linkListo=false;
+function ponerLink(){ if(!linkListo||vista||!$('#pv').hidden) return; const h=[fMarca?infoMarca(fMarca).k:'',cat?slug(cat):''].filter(Boolean).join('/');
+  if(('#'+h)!==location.hash&&!(h===''&&!location.hash)) history.replaceState(null,'',h?'#'+h:location.pathname+location.search); }
+function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), h=h0.toLowerCase(); if(!h||P.some(p=>p.id===h0)) return false;
+  const ps=h.split('/'); let ok=false;
+  const m=ordenMarcas(P.map(marcaDe)).find(x=>infoMarca(x).k===ps[0]); if(m){ fMarca=m; ps.shift(); ok=true; }
+  const todasC=CATS_FIJAS.concat(P.map(p=>p.categoria).filter(Boolean)); const c=ps[0]&&todasC.find(x=>slug(x)===ps[0]); if(c){ cat=c; ok=true; }
+  if(ok) vista=''; return ok; }
 function renderHero(){
   // Early Access cerrado: la portada de arriba presume el drop y pide la contraseña
   if(typeof EA!=='undefined'&&EA.priv&&!EA.abierto&&EA.portada){
@@ -460,6 +527,10 @@ function renderHero(){
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
+$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; if(vista!=='ea') vista=''; render(); });
+document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; if(vista!=='ea') vista=''; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
+  if(e.target.closest('[data-quitar-marca]')){ fMarca=''; render(); } },true);
+window.addEventListener('hashchange',()=>{ if(leerLink()) render(); });
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
   if(fv){ e.stopPropagation(); const id=fv.dataset.fav; if(favs.has(id)) favs.delete(id); else { favs.add(id); toast('Guardado en favoritos'); } guardarFavs(); fv.classList.toggle('on',favs.has(id)); return; }
@@ -470,10 +541,10 @@ setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{ const p={dr
 
 /* ---------- menú, búsqueda y filtros ---------- */
 $('#btnMenu').addEventListener('click',()=>abrir('ovMenu'));
-$('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; render(); window.scrollTo(0,0); });
+$('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; fMarca=''; render(); window.scrollTo(0,0); });
 $('#ovMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(!b) return; const g=b.dataset.go; cerrar('ovMenu');
   if(g==='pago'){ pintarPago(); abrir('ovPago'); return; }
-  if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='drops'; }
+  if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; cat=''; }
   else if(g==='favs'||g==='drops'||g==='ofertas'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
   cat=''; render(); document.getElementById('tabs').scrollIntoView({behavior:'smooth'}); });
 $('#btnBuscar').addEventListener('click',()=>{ abrir('ovBuscar'); $('#q').value=''; buscar(); setTimeout(()=>$('#q').focus(),60); });
@@ -486,7 +557,7 @@ function pintarFiltros(){
   chips($('#fOrden'),[['nuevo','Lo más nuevo'],['menor','Menor precio'],['mayor','Mayor precio']],orden,'o');
   const ts=new Set(); P.forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
   chips($('#fTalla'),[['','Todas']].concat([...ts].sort((a,b)=>{const i=ORDEN_T.indexOf(a),j=ORDEN_T.indexOf(b);return (i<0?99:i)-(j<0?99:j)||parseFloat(a)-parseFloat(b);}).map(t=>[t,t])),fTalla,'t');
-  chips($('#fMarca'),[['','Todas']].concat([...new Set(P.map(p=>p.marca).filter(Boolean))].sort().map(m=>[m,m])),fMarca,'m');
+  chips($('#fMarca'),[['','Todas']].concat(ordenMarcas(P.map(marcaDe)).map(m=>[m,m])),fMarca,'m');
   chips($('#fEstado'),[['','Todo'],['disponible','Entrega inmediata'],['proximo','Drops y preventas'],['ofertas','Ofertas y últimas tallas']],fEstado,'e');
 }
 $('#btnFiltrar').addEventListener('click',()=>{ pintarFiltros(); abrir('ovFiltro'); });
@@ -511,7 +582,7 @@ function pintarProducto(){
   $('#gal').innerHTML=fs.map((f,i)=>'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+' foto '+(i+1)+'"'+(i?' loading="lazy"':'')+'>').join('')||'<img alt="">';
   $('#dots').innerHTML=fs.length>1?fs.map((_,i)=>'<i'+(i?'':' class="on"')+'></i>').join(''):'';
   $('#gal').scrollLeft=0;
-  $('#pvBrand').textContent=[p.marca,p.categoria].filter(Boolean).join(' · ');
+  $('#pvBrand').textContent=[marcaDe(p),p.coleccion,p.categoria].filter(Boolean).join(' · ');
   $('#pvName').textContent=p.nombre;
   $('#pvPrice').innerHTML=of?'<span class="rd">'+money(pc)+' MXN</span><s>'+money(pb)+'</s>':money(pc)+' MXN';
   const est={early:['drop',p.estadoTxt||'Early Access'],preventa:['pre',p.estadoTxt||'Preventa'],camino:['cam',p.estadoTxt||'En camino'],disponible:['disp','Entrega inmediata']}[p.estado];
@@ -614,7 +685,7 @@ guardarBolsa(); guardarFavs();
 const t0=Date.now();
 function quitarIntro(){ const s=$('#splash'); setTimeout(()=>s.classList.add('out'),Math.max(0,1100-(Date.now()-t0))); }
 /* ---------- Early Access con contraseña: esos productos vienen cifrados en datos.json ---------- */
-const EA={priv:null,n:0,abierto:false,portada:'',marca:'',fecha:''};
+const EA={priv:null,n:0,abierto:false,portada:'',marca:'',fecha:'',ids:new Set()};
 const deB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function descifrar(pv,clave){
   const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(clave),'PBKDF2',false,['deriveKey']);
@@ -624,7 +695,7 @@ async function descifrar(pv,clave){
 async function entrarEA(clave,callado){
   try{
     const ps=(await descifrar(EA.priv,clave)).filter(p=>p&&p.id&&p.nombre);
-    const ids=new Set(P.map(p=>p.id)); P=P.concat(ps.filter(p=>!ids.has(p.id)));
+    const ids=new Set(P.map(p=>p.id)); P=P.concat(ps.filter(p=>!ids.has(p.id))); ps.forEach(p=>EA.ids.add(p.id));
     EA.abierto=true; LS.set('claveEA',clave); pintarEA(); renderHero(); render(); return true;
   }catch(e){ if(!callado) $('#eaErr').hidden=false; return false; }
 }
@@ -635,8 +706,8 @@ function pintarEA(){
     :EA.portada?'':'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
 }
 function abrirEA(){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').href=wa('Hola FITWEARMX 👋 ¿Me compartes la contraseña del Early Access?'); abrir('ovEA'); setTimeout(()=>$('#eaClave').focus(),60); }
-$('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='drops'; render(); } });
-async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='drops'; render(); toast('¡Bienvenido al Early Access!'); } }
+$('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='ea'; fMarca=''; cat=''; render(); } });
+async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='ea'; fMarca=''; cat=''; render(); toast('¡Bienvenido al Early Access!'); } }
 $('#eaEntrar').addEventListener('click',intentarEA);
 $('#hero').addEventListener('click',e=>{ if(e.target.closest('[data-ea="abrir"]')){ e.stopPropagation(); abrirEA(); } });
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
@@ -645,7 +716,7 @@ fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{prod
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
   if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
-  renderHero(); render(); quitarIntro();
+  leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
   const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&ids.has(id)) abrirProducto(id);
 });
 })();
