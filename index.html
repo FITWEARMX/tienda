@@ -304,6 +304,11 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
 <div class="sticky-buy" id="buy" hidden><button class="btn" id="btnAdd">Agregar a la bolsa</button></div>
 
 <!-- bolsa -->
+<div class="ov" id="ovPedido" hidden><div class="pn" role="dialog" aria-modal="true" aria-label="Tu pedido">
+  <div class="pn-h"><h2 id="pedTit">Tu pedido</h2><button class="ib" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pn-b" id="pedBody"></div>
+  <div class="pn-f" id="pedFoot"></div>
+</div></div>
 <div class="ov" id="ovBolsa" hidden><div class="pn" role="dialog" aria-modal="true" aria-label="Bolsa">
   <div class="pn-h"><h2>Tu bolsa</h2><button class="ib" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="pn-b" id="bolsaBody"></div>
@@ -541,7 +546,7 @@ $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]');
 $('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; render(); });
 document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
   if(e.target.closest('[data-quitar-marca]')){ fMarca=''; render(); } },true);
-window.addEventListener('hashchange',()=>{ if(leerLink()) render(); });
+window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); verPedido(ped); return; } if(leerLink()) render(); });
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
   if(fv){ e.stopPropagation(); const id=fv.dataset.fav; if(favs.has(id)) favs.delete(id); else { favs.add(id); toast('Guardado en favoritos'); } guardarFavs(); fv.classList.toggle('on',favs.has(id)); return; }
@@ -681,14 +686,38 @@ function linkPedido(){
   const t=totales(), d=new Date(), hoy=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const datos={v:1,c:codigo(),n:nombre.trim(),t:telefono.trim(),f:hoy,ent:entrega,pag:pago,env:entrega==='mty'?t.env:0,ant:t.aparta?t.hoy:0,res:t.aparta?t.resto:0,lim:t.aparta?fechaLimite():'',
     i:bolsa.map(x=>[x.nombre,x.marca||'',x.color||'',x.talla||'',+x.precio||0,x.foto||'',x.estado||''])};
-  return 'https://fitwearmx.github.io/facturas/#pedido='+b64url(JSON.stringify(datos));
+  return 'https://fitwearmx.github.io/tienda/#pedido='+b64url(JSON.stringify(datos));
 }
 function mensaje(){
   const t=totales(), n=nombre.trim();
-  return 'Hola FITWEARMX 👋'+(n?' Soy '+n+'.':'')+' Quiero hacer el pedido '+codigo()+': '+(bolsa.length===1?'1 prenda':bolsa.length+' prendas')+
+  return 'Hola FITWEARMX'+(n?', soy '+n+'.':'.')+' Quiero hacer el pedido '+codigo()+': '+(bolsa.length===1?'1 prenda':bolsa.length+' prendas')+
     ' · Total '+money(t.tot)+(entrega==='mty'?'':' + envío')+(t.aparta?' · Ordeno con '+money(t.hoy):'')+'.'+
     '\nEntrega: '+(entrega==='mty'?'Monterrey con chofer':'Envío a otra ciudad')+' · Pago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[pago]+
-    '\n\n📋 Mi pedido: '+linkPedido();
+    '\n\nMi pedido: '+linkPedido();
+}
+/* Cuando alguien abre el link del pedido: el cliente ve su pedido como ticket.
+   Solo en tu aparato (donde tienes Facturas) sale el botón para guardarlo en tus apps. */
+function leerPedido(){
+  const m=/^#pedido=([A-Za-z0-9_-]+)$/.exec(location.hash||''); if(!m) return null;
+  try{ const b=m[1].replace(/-/g,'+').replace(/_/g,'/'); const j=JSON.parse(decodeURIComponent(escape(atob(b+'==='.slice((b.length+3)%4)))));
+    return j&&j.v===1&&Array.isArray(j.i)&&j.i.length?{d:j,cod:m[1]}:null; }catch(e){ return null; }
+}
+function tengoFacturas(){ try{ const m=JSON.parse(localStorage.getItem('facturas_offline_v1')||'{}'); return !!m&&Object.keys(m).length>0; }catch(e){ return false; } }
+function verPedido(x){
+  const p=x.d, sub=p.i.reduce((a,i)=>a+(+i[4]||0),0), env=+p.env||0;
+  $('#pedTit').textContent='Pedido '+p.c;
+  $('#pedBody').innerHTML='<p style="margin:0 0 6px;font-size:15px"><b>'+esc(p.n||'')+'</b>'+(p.f?'<span style="color:var(--muted)"> · '+esc(fecha(p.f))+'</span>':'')+'</p>'+
+    '<p style="margin:0 0 10px;color:var(--muted);font-size:13px">'+(p.ent==='mty'?'Monterrey con chofer':'Envío a otra ciudad')+' · '+esc({transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[p.pag]||'')+'</p>'+
+    p.i.map(i=>'<div class="it" style="grid-template-columns:72px minmax(0,1fr)">'+(i[5]?'<img src="'+esc(i[5])+'" alt="">':'<img alt="">')+
+      '<div><b>'+esc(i[0])+'</b><small>'+esc([i[1],i[2],i[3]?'Talla '+i[3]:'',i[6]].filter(Boolean).join(' · '))+'</small><p class="p">'+money(i[4])+'</p></div></div>').join('')+
+    '<div style="margin-top:14px"><div class="tot"><span>Productos ('+p.i.length+')</span><span>'+money(sub)+'</span></div>'+
+    '<div class="tot"><span>Envío</span><span>'+(p.ent==='mty'?money(env):'Por cotizar')+'</span></div>'+
+    '<div class="tot big"><span>Total</span><span>'+money(sub+env)+(p.ent==='mty'?'':' + envío')+'</span></div>'+
+    (+p.ant?'<div class="apbox"><div class="tot"><span>Ordena con</span><b>'+money(p.ant)+'</b></div><div class="tot"><span>Resto a liquidar (antes del '+esc(p.lim)+')</span><span>'+money(p.res)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
+  $('#pedFoot').innerHTML=(tengoFacturas()?'<a class="btn full" href="../facturas/#pedido='+x.cod+'" style="margin-bottom:8px">📋 Guardar en mis apps</a>':'')+
+    '<a class="btn wa full" target="_blank" rel="noopener" href="'+esc(wa('Hola FITWEARMX, tengo una duda sobre mi pedido '+p.c))+'">¿Dudas? Escríbenos</a>'+
+    '<p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
+  abrir('ovPedido');
 }
 function actualizarPedido(){ const a=$('#btnPedir'); if(a) a.href=wa(mensaje()); }
 $('#ovBolsa').addEventListener('click',e=>{ const q=e.target.closest('[data-quitar]'); if(q){ bolsa.splice(+q.dataset.quitar,1); guardarBolsa(); pintarBolsa(); } });
@@ -742,7 +771,9 @@ fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{prod
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
   if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
+  const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
   leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
+  if(ped) verPedido(ped);
   const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&ids.has(id)) abrirProducto(id);
 });
 })();
