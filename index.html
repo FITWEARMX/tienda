@@ -546,7 +546,7 @@ $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]');
 $('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; render(); });
 document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
   if(e.target.closest('[data-quitar-marca]')){ fMarca=''; render(); } },true);
-window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); verPedido(ped); return; } if(leerLink()) render(); });
+window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); abierto.slice().forEach(cerrar); verPedido(ped); return; } if(leerLink()) render(); });
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
   if(fv){ e.stopPropagation(); const id=fv.dataset.fav; if(favs.has(id)) favs.delete(id); else { favs.add(id); toast('Guardado en favoritos'); } guardarFavs(); fv.classList.toggle('on',favs.has(id)); return; }
@@ -682,11 +682,29 @@ function pintarBolsa(){
 const b64url=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 let codigoPedido='';
 function codigo(){ if(!codigoPedido) codigoPedido='W-'+String(Math.floor(1000+Math.random()*9000)); return codigoPedido; }
+/* Link corto: solo códigos. #p=W1088.261018.Carlos-Saldaña.8120696654.mt.280.820.<prenda>-<color>-<talla>-<precio>…
+   El nombre, la foto y la marca de cada prenda se buscan en la tienda al abrirlo. */
+const ENT={mty:'m',nacional:'n'}, PAG={transferencia:'t',oxxo:'o',efectivo:'e'};
+const tallaCod=t=>String(t||'').replace(/-/g,'~').replace(/\./g,'!').replace(/\s+/g,'_');
+const tallaDe=t=>String(t||'').replace(/~/g,'-').replace(/!/g,'.').replace(/_/g,' ');
 function linkPedido(){
-  const t=totales(), d=new Date(), hoy=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  const datos={v:1,c:codigo(),n:nombre.trim(),t:telefono.trim(),f:hoy,ent:entrega,pag:pago,env:entrega==='mty'?t.env:0,ant:t.aparta?t.hoy:0,res:t.aparta?t.resto:0,lim:t.aparta?fechaLimite():'',
-    i:bolsa.map(x=>[x.nombre,x.marca||'',x.color||'',x.talla||'',+x.precio||0,x.foto||'',x.estado||''])};
-  return 'https://fitwearmx.github.io/tienda/#pedido='+b64url(JSON.stringify(datos));
+  const t=totales(), d=new Date(), hoy=String(d.getFullYear()).slice(2)+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+  const nom=nombre.trim().replace(/[.\-#&?%\/]/g,' ').trim().replace(/\s+/g,'-')||'Cliente';
+  const its=bolsa.map(x=>{ const p=P.find(q=>q.id===x.id), ci=p?Math.max(0,(p.colores||[]).findIndex(c=>(c.nombre||'')===(x.color||''))):0;
+    return [x.id,ci,tallaCod(x.talla),Math.round(+x.precio||0)].join('-'); });
+  return 'https://fitwearmx.github.io/tienda/#p='+[codigo().replace('-',''),hoy,nom,String(telefono).replace(/\D/g,''),(ENT[entrega]||'m')+(PAG[pago]||'t'),t.aparta?t.hoy:0,t.aparta?t.resto:0].concat(its).join('.');
+}
+// arma el pedido completo (con nombres, fotos y marcas de la tienda) a partir del link corto
+function pedidoCorto(txt){
+  const s=decodeURIComponent(txt).split('.'); if(s.length<8) return null;
+  const [cod,fe,nom,tel,ep,ant,res]=s, m=/^(\d\d)(\d\d)(\d\d)$/.exec(fe); if(!m) return null;
+  const f='20'+m[1]+'-'+m[2]+'-'+m[3], lim=new Date(2000+ +m[1],+m[2]-1,+m[3]+DIAS_LIQUIDAR);
+  const ent=Object.keys(ENT).find(k=>ENT[k]===ep[0])||'mty', pag=Object.keys(PAG).find(k=>PAG[k]===ep[1])||'transferencia';
+  const i=s.slice(7).map(x=>{ const [id,ci,ta,pr]=x.split('-'), p=P.find(q=>q.id===id), c=p&&(p.colores||[])[+ci||0];
+    if(!p) return ['Prenda que ya no está en la tienda','','',tallaDe(ta),+pr||0,'',''];
+    return [p.nombre,marcaDe(p),(c&&c.nombre)||'',tallaDe(ta),+pr||0,(c&&c.fotos&&c.fotos[0])||foto1(p),p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||'']; });
+  return {v:1,c:cod.replace(/^([A-Z]+)(\d+)$/,'$1-$2'),n:nom.replace(/-/g,' '),t:tel,f,ent,pag,env:ent==='mty'?TIENDA.envioMty:0,ant:+ant||0,res:+res||0,
+    lim:+ant?lim.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][lim.getMonth()]:'',i};
 }
 function mensaje(){
   const t=totales(), n=nombre.trim();
@@ -698,6 +716,8 @@ function mensaje(){
 /* Cuando alguien abre el link del pedido: el cliente ve su pedido como ticket.
    Solo en tu aparato (donde tienes Facturas) sale el botón para guardarlo en tus apps. */
 function leerPedido(){
+  const c=/^#p=(.+)$/.exec(location.hash||'');
+  if(c){ try{ const d=pedidoCorto(c[1]); return d&&d.i.length?{d,cod:b64url(JSON.stringify(d))}:null; }catch(e){ return null; } }
   const m=/^#pedido=([A-Za-z0-9_-]+)$/.exec(location.hash||''); if(!m) return null;
   try{ const b=m[1].replace(/-/g,'+').replace(/_/g,'/'); const j=JSON.parse(decodeURIComponent(escape(atob(b+'==='.slice((b.length+3)%4)))));
     return j&&j.v===1&&Array.isArray(j.i)&&j.i.length?{d:j,cod:m[1]}:null; }catch(e){ return null; }
