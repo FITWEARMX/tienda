@@ -635,7 +635,7 @@ $('#btnAdd').addEventListener('click',()=>{
 });
 
 /* ---------- bolsa y pedido por WhatsApp ---------- */
-let entrega=LS.get('entrega','mty'), pago=LS.get('pago','transferencia'), nombre=LS.get('nombre','');
+let entrega=LS.get('entrega','mty'), pago=LS.get('pago','transferencia'), nombre=LS.get('nombre',''), telefono=LS.get('tel','');
 function pagoHTML(){
   return TIENDA.cuentas.map(c=>'<div class="pay"><b>'+esc(c.banco)+'</b>'+
     '<div class="row"><span>CLABE <span class="num">'+esc(c.clabe)+'</span></span><button class="copy" data-copy="'+esc(c.clabe)+'">Copiar</button></div>'+
@@ -662,7 +662,9 @@ function pintarBolsa(){
     '<p class="lbl">Forma de pago</p>'+
     [['transferencia','Transferencia'],['oxxo','Depósito en OXXO']].concat(entrega==='mty'?[['efectivo','Efectivo al recibir']]:[]).map(o=>'<label class="opt'+(pago===o[0]?' on':'')+'"><input type="radio" name="pag" value="'+o[0]+'"'+(pago===o[0]?' checked':'')+'><span><b>'+o[1]+'</b></span></label>').join('')+
     (pago!=='efectivo'?'<details style="margin:4px 0 10px"><summary style="cursor:pointer;font-weight:700;font-size:14px">Ver datos para pagar</summary><div style="margin-top:10px">'+pagoHTML()+'</div></details>':'')+
-    '<label class="lbl" style="display:block">Tu nombre <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)">(opcional)</span><input class="in" id="bNombre" value="'+esc(nombre)+'" placeholder="Para saber quién pide" autocomplete="name"></label>'+
+    '<label class="lbl" style="display:block">Tu nombre<input class="in" id="bNombre" value="'+esc(nombre)+'" placeholder="Nombre y apellido" autocomplete="name"></label>'+
+    '<label class="lbl" style="display:block;margin-top:10px">Tu WhatsApp <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--muted)">(para avisarte de tu pedido)</span><input class="in" id="bTel" value="'+esc(telefono)+'" placeholder="81 1234 5678" inputmode="tel" autocomplete="tel"></label>'+
+    '<p id="bErr" style="color:var(--red);font-size:13px;font-weight:600;margin:8px 0 0" hidden></p>'+
     '<div style="margin-top:14px"><div class="tot"><span>Productos ('+bolsa.length+')</span><span>'+money(t.sub)+'</span></div>'+
     '<div class="tot"><span>Envío</span><span>'+(entrega==='mty'?money(t.env):'Por cotizar')+'</span></div>'+
     '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div>'+
@@ -671,15 +673,22 @@ function pintarBolsa(){
   $('#bolsaFoot').innerHTML='<a class="btn wa full" id="btnPedir" target="_blank" rel="noopener">Pedir por WhatsApp</a><p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
   actualizarPedido();
 }
+/* Pedido: mensaje corto + link que abre tu app de Facturas con todo lleno (el cliente no ve nada de eso) */
+const b64url=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+let codigoPedido='';
+function codigo(){ if(!codigoPedido) codigoPedido='W-'+String(Math.floor(1000+Math.random()*9000)); return codigoPedido; }
+function linkPedido(){
+  const t=totales(), d=new Date(), hoy=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const datos={v:1,c:codigo(),n:nombre.trim(),t:telefono.trim(),f:hoy,ent:entrega,pag:pago,env:entrega==='mty'?t.env:0,ant:t.aparta?t.hoy:0,res:t.aparta?t.resto:0,lim:t.aparta?fechaLimite():'',
+    i:bolsa.map(x=>[x.nombre,x.marca||'',x.color||'',x.talla||'',+x.precio||0,x.foto||'',x.estado||''])};
+  return 'https://fitwearmx.github.io/facturas/#pedido='+b64url(JSON.stringify(datos));
+}
 function mensaje(){
-  const t=totales(), n=($('#bNombre')||{}).value||nombre;
-  const lineas=bolsa.map((x,i)=>(i+1)+'. '+x.nombre+(x.marca?' ('+x.marca+')':'')+(x.color?' · '+x.color:'')+(x.talla?' · Talla '+x.talla:'')+(x.estado?' · '+x.estado:'')+' — '+money(x.precio));
-  return 'Hola FITWEARMX 👋'+(n.trim()?' Soy '+n.trim()+'.':'')+' Quiero hacer este pedido:\n\n'+lineas.join('\n')+
-    '\n\nProductos: '+money(t.sub)+
-    '\nEntrega: '+(entrega==='mty'?'Monterrey con chofer ('+money(t.env)+')':'Envío a otra ciudad (por cotizar)')+
-    '\nTotal: '+money(t.tot)+(entrega==='mty'?'':' + envío')+
-    (t.aparta?'\nOrdena con: '+money(t.hoy)+' MXN\nResto a liquidar en 3 semanas (antes del '+fechaLimite()+'): '+money(t.resto):'')+
-    '\nPago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[pago];
+  const t=totales(), n=nombre.trim();
+  return 'Hola FITWEARMX 👋'+(n?' Soy '+n+'.':'')+' Quiero hacer el pedido '+codigo()+': '+(bolsa.length===1?'1 prenda':bolsa.length+' prendas')+
+    ' · Total '+money(t.tot)+(entrega==='mty'?'':' + envío')+(t.aparta?' · Ordeno con '+money(t.hoy):'')+'.'+
+    '\nEntrega: '+(entrega==='mty'?'Monterrey con chofer':'Envío a otra ciudad')+' · Pago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir'}[pago]+
+    '\n\n📋 Mi pedido: '+linkPedido();
 }
 function actualizarPedido(){ const a=$('#btnPedir'); if(a) a.href=wa(mensaje()); }
 $('#ovBolsa').addEventListener('click',e=>{ const q=e.target.closest('[data-quitar]'); if(q){ bolsa.splice(+q.dataset.quitar,1); guardarBolsa(); pintarBolsa(); } });
@@ -687,7 +696,13 @@ $('#ovBolsa').addEventListener('change',e=>{
   if(e.target.name==='ent'){ entrega=e.target.value; if(entrega!=='mty'&&pago==='efectivo') pago='transferencia'; LS.set('entrega',entrega); LS.set('pago',pago); pintarBolsa(); }
   if(e.target.name==='pag'){ pago=e.target.value; LS.set('pago',pago); pintarBolsa(); }
 });
-$('#ovBolsa').addEventListener('input',e=>{ if(e.target.id==='bNombre'){ nombre=e.target.value; LS.set('nombre',nombre); actualizarPedido(); } });
+$('#ovBolsa').addEventListener('input',e=>{ if(e.target.id==='bNombre'){ nombre=e.target.value; LS.set('nombre',nombre); actualizarPedido(); }
+  if(e.target.id==='bTel'){ telefono=e.target.value; LS.set('tel',telefono); actualizarPedido(); } });
+// antes de mandar: nombre y WhatsApp (10 dígitos)
+$('#ovBolsa').addEventListener('click',e=>{ const a=e.target.closest('#btnPedir'); if(!a) return;
+  const err=!nombre.trim()?'Escribe tu nombre.':String(telefono).replace(/\D/g,'').length<10?'Escribe tu WhatsApp a 10 dígitos.':'';
+  if(err){ e.preventDefault(); $('#bErr').textContent=err; $('#bErr').hidden=false; $(!nombre.trim()?'#bNombre':'#bTel').focus(); return; }
+  $('#bErr').hidden=true; actualizarPedido(); setTimeout(()=>{ codigoPedido=''; },1500); });
 $('#btnBolsa').addEventListener('click',()=>{ pintarBolsa(); abrir('ovBolsa'); });
 
 /* ---------- arranque ---------- */
