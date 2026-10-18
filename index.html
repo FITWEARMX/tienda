@@ -74,7 +74,17 @@ img{display:block;max-width:100%}
 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .chip.agot{color:#a0a0a5;text-decoration:line-through;background:var(--soft)}.chip.agot.on{background:#6b6b70;color:#e8e8ea;border-color:#6b6b70}
 /* marcas: franja de logos */
+.barM{position:sticky;top:calc(56px + env(safe-area-inset-top,0px));z-index:25;background:#fff;transition:box-shadow .2s}
+.barM.pegada{box-shadow:0 6px 14px -10px rgba(0,0,0,.35);border-bottom:1px solid var(--line)}
+.barM.pegada .marcas{padding-top:8px}.barM.pegada .mk{height:46px}
 .marcas{display:flex;gap:10px;overflow-x:auto;padding:14px 16px 4px;scrollbar-width:none;max-width:1200px;margin:0 auto}
+.activos{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 16px 10px;max-width:1200px;margin:0 auto}
+.act{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer}
+.act b{font-weight:800;opacity:.8}
+.act.todo{background:#fff;color:var(--ink);border-color:var(--line)}
+.vacioM{grid-column:1/-1;text-align:center;padding:40px 10px;color:var(--muted)}
+.vacioM b{display:block;color:var(--ink);font-size:16px;margin-bottom:12px}
+.vacioM .btn{margin:4px}
 .marcas::-webkit-scrollbar{display:none}
 .mk{flex-shrink:0;width:128px;height:58px;border-radius:12px;background:#111113;border:2px solid #111113;display:grid;place-items:center;padding:10px 14px;cursor:pointer;transition:transform .15s,box-shadow .15s}
 .mk img{max-width:100%;max-height:30px;object-fit:contain}
@@ -229,14 +239,18 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
   <nav class="tabs" id="tabs" aria-label="Línea">
     <button data-linea="" class="on">Todo</button><button data-linea="hombre">Hombre</button><button data-linea="mujer">Mujer</button>
   </nav>
-  <div class="marcas" id="marcas" role="group" aria-label="Marcas"></div>
-  <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
+  <div id="anclaM"></div>
+  <div class="barM" id="barM">
+    <div class="marcas" id="marcas" role="group" aria-label="Marcas"></div>
+    <div class="activos" id="activos" hidden></div>
+  </div>
+  <div class="cats" id="cats" hidden></div>
   <div class="wrap">
     <div id="dropBox"></div>
     <div id="eaBox"></div>
     <h2 class="title" id="titulo" hidden></h2>
     <div class="selM" id="selM" hidden></div>
-    <div class="bar"><button id="btnFiltrar"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Filtrar y ordenar</button><span id="cuenta"></span></div>
+    <div class="bar"><button id="btnFiltrar"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span id="fN">Filtrar y ordenar</span></button><span id="cuenta"></span></div>
     <div class="grid" id="grid"></div>
   </div>
 </main>
@@ -282,6 +296,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
   <div class="pn-h"><h2>Filtrar y ordenar</h2><button class="ib" data-close aria-label="Cerrar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="pn-b">
     <p class="lbl">Ordenar</p><div class="chips" id="fOrden"></div>
+    <p class="lbl">Tipo de prenda</p><div class="chips" id="fCat"></div>
     <p class="lbl">Talla</p><div class="chips" id="fTalla"></div>
     <p class="lbl">Marca</p><div class="chips" id="fMarca"></div>
     <p class="lbl">Disponibilidad</p><div class="chips" id="fEstado"></div>
@@ -403,6 +418,7 @@ function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?
 function ordenMarcas(ns){ return [...new Set(ns)].filter(Boolean).sort((a,b)=>{ const i=MARCAS.findIndex(o=>o.n===a),j=MARCAS.findIndex(o=>o.n===b); return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b); }); }
 /* Categorías: estas siempre salen; las demás solo si hay productos */
 const CATS_FIJAS=['Playeras','Shorts','Pants','Hoodies','Chamarras','Compresión','Accesorios'];
+let CATS_INFO={n:{},cats:[],total:0};
 let P=[], linea=LS.get('linea',''), cat='', vista='', orden='nuevo', fTalla='', fMarca='', fEstado='', fCol='';
 let favs=new Set(LS.get('favs',[])), bolsa=LS.get('bolsa',[]);
 let cur=null, curColor=null, curTalla='';
@@ -501,8 +517,8 @@ function render(){
   const n={}; enMarca.forEach(p=>{ const c=catDe(p); if(c) n[c]=(n[c]||0)+(vista==='ofertas'?ofertasDe(p).length:1); });
   const nTodo=Object.values(n).reduce((a,b)=>a+b,0)||enMarca.length;
   const cats=CATS_FIJAS.concat(Object.keys(n).filter(c=>!CATS_FIJAS.includes(c)).sort());
-  if(cat&&!n[cat]) cat=''; // si la marca no tiene de esa categoría, vuelve a Todo
-  $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+(vista==='ofertas'?nTodo:enMarca.length)+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
+  CATS_INFO={n,cats,total:vista==='ofertas'?nTodo:enMarca.length};
+  pintarActivos();
   $('#selM').hidden=!fMarca; $('#selM').innerHTML=fMarca?logoHTML(fMarca)+'<b>'+esc(fCol||fMarca)+'</b>'+(fCol?'<button data-quitar-col>Ver todo '+esc(fMarca)+'</button>':'<button data-quitar-marca>Ver todas las marcas</button>'):'';
   ponerLink();
   const prox=P.filter(p=>p.estado==='early'&&dropDate(p)&&dropDate(p)>new Date()).sort((a,b)=>dropDate(a)-dropDate(b))[0];
@@ -518,7 +534,7 @@ function render(){
     $('#mTodo').textContent=P.length?String(P.length):''; return;
   }
   $('#cuenta').textContent=r.length===1?'1 producto':r.length+' productos';
-  $('#grid').innerHTML=r.length?(fMarca||vista==='favs'?r.map(cardHTML).join(''):porMarca(r,cardHTML)):'<p class="empty" style="grid-column:1/-1">'+(vista==='favs'?'Todavía no tienes favoritos. Toca el corazón de una prenda para guardarla.':P.length?'No hay productos con esos filtros.':'Muy pronto subiremos productos nuevos. Síguenos en Instagram.')+'</p>';
+  $('#grid').innerHTML=r.length?(fMarca||vista==='favs'?r.map(cardHTML).join(''):porMarca(r,cardHTML)):(fMarca&&activos().length&&vista!=='favs'?vacioMarca():'<p class="empty" style="grid-column:1/-1">'+(vista==='favs'?'Todavía no tienes favoritos. Toca el corazón de una prenda para guardarla.':P.length?'No hay productos con esos filtros.':'Muy pronto subiremos productos nuevos. Síguenos en Instagram.')+'</p>');
   $('#mTodo').textContent=P.length?String(P.length):'';
 }
 /* Cada marca en su propio bloque, con su logo: nada revuelto */
@@ -530,6 +546,26 @@ function pintarMarcas(base){
   $('#marcas').classList.toggle('sel',!!fMarca);
   $('#marcas').innerHTML=ms.length>1||fMarca?ms.map(m=>'<button class="mk'+(infoMarca(m).alta?' alta':'')+(fMarca===m?' on':'')+'" data-marca="'+esc(m)+'" aria-pressed="'+(fMarca===m)+'" title="'+esc(m)+'">'+(infoMarca(m).logo?'<img src="'+esc(infoMarca(m).logo)+'" alt="'+esc(m)+'">':'<span>'+esc(m)+'</span>')+'</button>').join(''):'';
 }
+/* Filtros que lleva el cliente: se quedan puestos al cambiar de marca y se quitan con un toque */
+const EST_TXT={disponible:'Entrega inmediata',proximo:'Drops y preventas',ofertas:'Ofertas'};
+function activos(){ return [cat&&['cat',cat],fTalla&&['talla','Talla '+fTalla],fEstado&&['estado',EST_TXT[fEstado]||fEstado]].filter(Boolean); }
+function pintarActivos(){
+  const a=activos();
+  $('#activos').hidden=!a.length;
+  $('#activos').innerHTML=a.map(x=>'<button class="act" data-quita="'+x[0]+'" aria-label="Quitar '+esc(x[1])+'">'+esc(x[1])+' <b>✕</b></button>').join('')+(a.length>1?'<button class="act todo" data-quita="todo">Quitar todo</button>':'');
+  $('#fN').textContent='Filtrar y ordenar'+(a.length?' · '+a.length:'');
+}
+function vacioMarca(){
+  const a=activos().map(x=>x[1]).join(' · ');
+  return '<div class="vacioM"><b>'+esc(fCol||fMarca)+' no tiene '+esc(a)+' por ahora.</b>'+
+    '<button class="btn" data-quitar-marca>Ver '+esc(a)+' en todas las marcas</button><button class="btn o" data-quita="todo">Ver todo '+esc(fCol||fMarca)+'</button></div>';
+}
+document.addEventListener('click',e=>{ const q=e.target.closest('[data-quita]'); if(!q) return; e.stopPropagation();
+  const k=q.dataset.quita; if(k==='cat'||k==='todo') cat=''; if(k==='talla'||k==='todo') fTalla=''; if(k==='estado'||k==='todo') fEstado='';
+  render(); },true);
+// la franja de marcas se queda arriba al bajar; al cambiar de marca te regresa al inicio de los productos
+function alInicioDeProductos(){ const y=$('#anclaM').getBoundingClientRect().top+window.scrollY-56; if(window.scrollY>y+5) window.scrollTo({top:y}); }
+window.addEventListener('scroll',()=>{ const y=$('#anclaM').getBoundingClientRect().top; $('#barM').classList.toggle('pegada',y<57); },{passive:true});
 /* Cada filtro tiene su link: #gymshark, #gymshark/shorts, #shorts */
 let linkListo=false;
 function ponerLink(){ if(!linkListo||vista||!$('#pv').hidden) return; const h=[fMarca?infoMarca(fMarca).k:'',cat?slug(cat):''].filter(Boolean).join('/');
@@ -582,7 +618,7 @@ function irDestino(dest,link){
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
-$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; fCol=''; render(); });
+$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; fCol=''; render(); alInicioDeProductos(); });
 document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
   if(e.target.closest('[data-quitar-marca]')){ fMarca=''; fCol=''; render(); }
   if(e.target.closest('[data-quitar-col]')){ fCol=''; render(); } },true);
@@ -611,16 +647,20 @@ $('#qRes').addEventListener('click',e=>{ const c=e.target.closest('.card'); if(c
 function chips(el,opts,val,key){ el.innerHTML=opts.map(o=>'<button class="chip'+(val===o[0]?' on':'')+'" data-'+key+'="'+esc(o[0])+'">'+esc(o[1])+'</button>').join(''); }
 function pintarFiltros(){
   chips($('#fOrden'),[['nuevo','Lo más nuevo'],['menor','Menor precio'],['mayor','Mayor precio']],orden,'o');
-  const ts=new Set(); P.forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
+  // tipos de prenda: solo los que hay en la marca que estás viendo, con cuántos tiene
+  const ci=CATS_INFO; chips($('#fCat'),[['','Todo · '+ci.total]].concat(ci.cats.filter(c=>ci.n[c]||c===cat).map(c=>[c,c+' · '+(ci.n[c]||0)])),cat,'c');
+  // tallas: las de la marca y el tipo de prenda que estás viendo
+  const ts=new Set(); P.filter(p=>(!linea||!p.linea||p.linea===linea||p.linea==='unisex')&&(!fMarca||marcaDe(p)===fMarca)&&(!fCol||esDeCol(p))&&(!cat||catDe(p)===cat)).forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
+  if(fTalla) ts.add(fTalla);
   chips($('#fTalla'),[['','Todas']].concat([...ts].sort((a,b)=>{const i=ORDEN_T.indexOf(a),j=ORDEN_T.indexOf(b);return (i<0?99:i)-(j<0?99:j)||parseFloat(a)-parseFloat(b);}).map(t=>[t,t])),fTalla,'t');
   chips($('#fMarca'),[['','Todas']].concat(ordenMarcas(P.map(marcaDe)).map(m=>[m,m])),fMarca,'m');
   chips($('#fEstado'),[['','Todo'],['disponible','Entrega inmediata'],['proximo','Drops y preventas'],['ofertas','Ofertas y últimas tallas']],fEstado,'e');
 }
 $('#btnFiltrar').addEventListener('click',()=>{ pintarFiltros(); abrir('ovFiltro'); });
 $('#ovFiltro').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return;
-  if('o' in b.dataset) orden=b.dataset.o; if('t' in b.dataset) fTalla=b.dataset.t; if('m' in b.dataset){ fMarca=b.dataset.m; fCol=''; } if('e' in b.dataset) fEstado=b.dataset.e;
-  pintarFiltros(); render(); });
-$('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; fTalla=''; fMarca=''; fCol=''; fEstado=''; pintarFiltros(); render(); });
+  if('o' in b.dataset) orden=b.dataset.o; if('c' in b.dataset) cat=b.dataset.c; if('t' in b.dataset) fTalla=b.dataset.t; if('m' in b.dataset){ fMarca=b.dataset.m; fCol=''; } if('e' in b.dataset) fEstado=b.dataset.e;
+  render(); pintarFiltros(); });
+$('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; cat=''; fTalla=''; fMarca=''; fCol=''; fEstado=''; render(); pintarFiltros(); });
 
 /* ---------- producto ---------- */
 function abrirProducto(id,colorK){
