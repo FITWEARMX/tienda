@@ -295,7 +295,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
       <span class="estado" id="pvEstado" hidden></span>
       <p class="note" id="pvNote" hidden></p>
       <div id="pvColorsBox"><p class="lbl">Color: <span id="pvColorName" style="font-weight:500;text-transform:none;letter-spacing:0"></span></p><div class="chips" id="pvColors"></div></div>
-      <p class="lbl">Talla</p><div class="sizes" id="pvSizes"></div>
+      <p class="lbl" id="pvTallaLbl">Talla</p><div class="sizes" id="pvSizes"></div>
       <p class="err" id="pvErr" hidden>Elige tu talla.</p>
       <p class="desc" id="pvDesc"></p>
     </div>
@@ -382,7 +382,12 @@ function coleccionDe(p){ if(p.coleccion) return p.coleccion; const m=String(p.ma
 function catDe(p){ const t=String(p.nombre||'').toLowerCase();
   if(/jacket|chamarra|windbreaker|bomber|puffer|\bcoat\b|parka|anorak|varsity/.test(t)) return 'Chamarras';
   if(/compression|compresi|base ?layer/.test(t)) return 'Compresión';
+  if(/\b(jug|bottle|shaker|backpack|duffel|bags?|caps?|hats?|beanie|socks?|sunglass(es)?|chain|pendant|necklace|rings?|belt|straps?|towel|keychain|headband|wristbands?)\b/.test(t)) return 'Accesorios';
   return p.categoria||''; }
+// talla única: accesorios (como en YoungLA y Gymshark) o lo que la marca marca como "One Size"
+const UNICA=/^(única|unica|one ?size|os|o\/s|default ?title|talla única)$/i;
+function esUnica(p,c){ const ks=Object.keys((c||{}).tallas||{}); return catDe(p)==='Accesorios'||(ks.length>0&&ks.every(k=>UNICA.test(k.trim()))); }
+function hayUnica(p,c){ return p.estado!=='disponible'||Object.values((c||{}).tallas||{}).some(v=>+v>0); }
 function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
 function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
 // orden de las marcas: el de tu franja; las que no estén en la lista, al final
@@ -403,7 +408,7 @@ function hay(p,c,t){ return p.estado!=='disponible'||(+((c.tallas||{})[t])||0)>0
 /* Agotado en la marca: el color sale tachado; las tallas agotadas también */
 function todoAgotado(p){ const cs=p.colores||[]; return cs.length>0&&cs.every(c=>c.agotado); }
 function ordenaT(a){ return a.slice().sort((x,y)=>{ const i=ORDEN_T.indexOf(x),j=ORDEN_T.indexOf(y); return (i<0?99:i)-(j<0?99:j)||String(x).localeCompare(y); }); }
-function tallasConStock(p){ const s=new Set(); (p.colores||[]).forEach(c=>tallasDe(p,c).forEach(t=>{ if(hay(p,c,t)) s.add(t); })); return s; }
+function tallasConStock(p){ if(esUnica(p,(p.colores||[])[0])) return (p.colores||[]).some(c=>hayUnica(p,c))?new Set(['Única']):new Set(); const s=new Set(); (p.colores||[]).forEach(c=>tallasDe(p,c).forEach(t=>{ if(hay(p,c,t)) s.add(t); })); return s; }
 function foto1(p){ for(const c of p.colores||[]) if(c.fotos&&c.fotos[0]) return c.fotos[0]; return ''; }
 function esNuevo(p){ return p.estado==='disponible'&&p.creado&&(Date.now()-p.creado<14*864e5); }
 function etiqueta(p){
@@ -455,7 +460,7 @@ function precioMax(p){ return Math.max(p.precio,...(p.colores||[]).map(c=>precio
 // precio "antes" de un color: el de la rebaja de la marca o el del color más caro de la prenda (el que sea mayor)
 function antesC(p,c){ return Math.max(precioMax(p),+(c&&c.precioAntes)||0); }
 function ofertasDe(p){ return (p.colores||[]).filter(c=>!c.agotado&&precioC(p,c)<antesC(p,c)); }
-function tallasDisp(p,c){ return tallasDe(p,c).filter(t=>hay(p,c,t)); }
+function tallasDisp(p,c){ if(esUnica(p,c)) return []; return tallasDe(p,c).filter(t=>hay(p,c,t)); }
 function ofertaHTML(p,c){
   const f=(c.fotos&&c.fotos[0])||foto1(p), pc=precioC(p,c), mx=antesC(p,c), ts=tallasDisp(p,c), menos=Math.round((1-pc/mx)*100);
   return '<div class="card" role="link" tabindex="0" data-id="'+esc(p.id)+'" data-color="'+esc(c.k)+'"><div class="ph">'+(f?'<img src="'+esc(f)+'" alt="'+esc(p.nombre+' '+c.nombre)+'" loading="lazy">':'')+
@@ -614,13 +619,14 @@ function pintarProducto(){
   const cs=(p.colores||[]).filter(x=>x.nombre);
   $('#pvColorsBox').hidden=cs.length<1; $('#pvColorName').textContent=(c.nombre||'')+(c.agotado?' · Agotado':'');
   $('#pvColors').innerHTML=cs.length>1?cs.map(x=>'<button class="chip'+(x===c?' on':'')+(x.agotado?' agot':'')+'" data-color="'+esc(x.k)+'">'+esc(x.nombre)+'</button>').join(''):'';
-  const ts=tallasDe(p,c), todas=ordenaT(ts.concat((c.agotadas||[]).filter(t=>!ts.includes(t))));
-  $('#pvSizes').innerHTML=todas.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(ts.includes(t)&&hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
+  const ts=tallasDe(p,c), todas=ordenaT(ts.concat((c.agotadas||[]).filter(t=>!ts.includes(t)))), un=esUnica(p,c);
+  $('#pvTallaLbl').textContent=un?'Talla única':'Talla';
+  $('#pvSizes').innerHTML=un?'':todas.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(ts.includes(t)&&hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
   if(c.agotado){ $('#pvAparta').hidden=true; $('#pvNote').hidden=true; }
   $('#pvErr').hidden=true; $('#pvDesc').textContent=[coleccionDe(p)?'Colección: '+coleccionDe(p):'',p.descripcion||''].filter(Boolean).join('\n');
   $('#pvFav').classList.toggle('on',favs.has(p.id));
   $('#pvFav').querySelector('svg').style.fill=favs.has(p.id)?'#0b0b0c':'none';
-  const sinStock=p.estado==='disponible'&&!tallasConStock(p).size;
+  const sinStock=p.estado==='disponible'&&(un?!hayUnica(p,c):!tallasConStock(p).size);
   $('#btnAdd').textContent=c.agotado?'Agotado · Avísame cuando regrese':sinStock?'Preguntar por WhatsApp':p.estado==='early'?'Ordenar en la bolsa':'Agregar a la bolsa';
 }
 $('#gal').addEventListener('scroll',()=>{ const g=$('#gal'), i=Math.round(g.scrollLeft/g.clientWidth); document.querySelectorAll('#dots i').forEach((d,j)=>d.classList.toggle('on',i===j)); },{passive:true});
@@ -631,9 +637,11 @@ $('#btnAdd').addEventListener('click',()=>{
   const p=cur; if(!p) return;
   const c=curColor||{};
   if(c.agotado){ window.open(wa('Hola, ¿me avisas cuando regrese '+p.nombre+(c.nombre?' en '+c.nombre:'')+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
-  if(p.estado==='disponible'&&!tallasConStock(p).size){ window.open(wa('Hola, ¿me avisas cuando tengas de nuevo '+p.nombre+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
+  const un=esUnica(p,c);
+  if(p.estado==='disponible'&&(un?!hayUnica(p,c):!tallasConStock(p).size)){ window.open(wa('Hola, ¿me avisas cuando tengas de nuevo '+p.nombre+(p.marca?' de '+p.marca:'')+'?'),'_blank'); return; }
   const ts=tallasDe(p,c);
-  if(ts.length&&!curTalla){ $('#pvErr').hidden=false; $('#pvSizes').scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  if(un) curTalla='Única';
+  else if(ts.length&&!curTalla){ $('#pvErr').hidden=false; $('#pvSizes').scrollIntoView({behavior:'smooth',block:'center'}); return; }
   bolsa.push({aparta:seAparta(p),id:p.id,nombre:p.nombre,marca:p.marca||'',color:c.nombre||'',talla:curTalla,precio:precioC(p,c),foto:(c.fotos&&c.fotos[0])||foto1(p),estado:p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||''});
   guardarBolsa(); toast('Agregado a tu bolsa'); curTalla=''; pintarProducto();
   setTimeout(()=>{ pintarBolsa(); abrir('ovBolsa'); },350);
