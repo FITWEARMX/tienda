@@ -236,7 +236,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
 
 <main id="main">
   <section class="hero" id="hero" hidden></section>
-  <nav class="tabs" id="tabs" aria-label="Línea">
+  <nav class="tabs" id="tabs" aria-label="Línea" hidden>
     <button data-linea="" class="on">Todo</button><button data-linea="hombre">Hombre</button><button data-linea="mujer">Mujer</button>
   </nav>
   <div id="anclaM"></div>
@@ -412,6 +412,10 @@ function esUnica(p,c){ const ks=Object.keys((c||{}).tallas||{}); return catDe(p)
 function hayUnica(p,c){ return p.estado!=='disponible'||Object.values((c||{}).tallas||{}).some(v=>+v>0); }
 // una colección (por ejemplo la de una noticia): "Waffle Knit Collection"
 const esDeCol=p=>!!fCol&&coleccionDe(p).toLowerCase()===fCol.toLowerCase();
+// Hombre o mujer: lo que diga el Catálogo; si no dice, por el nombre de la prenda (leggings, bra, crop… y la línea "Adapt" son de mujer)
+const DE_MUJER=/\b(women'?s?|woman|womens|her|hers|she|ladies|leggings?|sports?\s*bras?|bras?|bralette|crop|halter|bikers|biker shorts?|skirt|skort|dress|bodysuit|unitard|cami|scrunch|flare|adapt|vital|butterfly)\b|zip front top|off the shoulder|^\s*w\d+\s*-/i;
+function lineaDe(p){ if(p.linea==='hombre'||p.linea==='mujer'||p.linea==='unisex') return p.linea; return DE_MUJER.test(p.nombre||'')||/\b(her|hers|women'?s?|she)\b/i.test(p.coleccion||'')?'mujer':'hombre'; }
+const enLinea=p=>!linea||lineaDe(p)===linea||lineaDe(p)==='unisex';
 function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
 function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
 // orden de las marcas: el de tu franja; las que no estén en la lista, al final
@@ -466,7 +470,7 @@ function filtrar(){
   if(vista==='favs') r=r.filter(p=>favs.has(p.id));
   else if(vista==='drops') r=r.filter(p=>p.estado==='early'||p.estado==='preventa'||p.estado==='camino');
   else if(vista==='ea') r=r.filter(p=>EA.ids.has(p.id));
-  if(linea) r=r.filter(p=>!p.linea||p.linea===linea||p.linea==='unisex');
+  if(linea) r=r.filter(enLinea);
   if(cat) r=r.filter(p=>catDe(p)===cat);
   if(fMarca) r=r.filter(p=>marcaDe(p)===fMarca);
   if(fCol) r=r.filter(p=>esDeCol(p));
@@ -509,7 +513,7 @@ function cardHTML(p){
 }
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
-  const base=P.filter(p=>!linea||!p.linea||p.linea===linea||p.linea==='unisex');
+  const base=P.filter(enLinea);
   pintarMarcas(base.filter(p=>vista!=='ofertas'||ofertasDe(p).length>0));
   // las categorías cuentan solo lo de la marca elegida
   const enVista=p=>(vista!=='ea'||EA.ids.has(p.id))&&(vista!=='ofertas'||ofertasDe(p).length>0);
@@ -548,7 +552,7 @@ function pintarMarcas(base){
 }
 /* Filtros que lleva el cliente: se quedan puestos al cambiar de marca y se quitan con un toque */
 const EST_TXT={disponible:'Entrega inmediata',proximo:'Drops y preventas',ofertas:'Ofertas'};
-function activos(){ return [cat&&['cat',cat],fTalla&&['talla','Talla '+fTalla],fEstado&&['estado',EST_TXT[fEstado]||fEstado]].filter(Boolean); }
+function activos(){ return [linea&&['linea',linea==='mujer'?'Mujer':'Hombre'],cat&&['cat',cat],fTalla&&['talla','Talla '+fTalla],fEstado&&['estado',EST_TXT[fEstado]||fEstado]].filter(Boolean); }
 function pintarActivos(){
   const a=activos();
   $('#activos').hidden=!a.length;
@@ -561,7 +565,7 @@ function vacioMarca(){
     '<button class="btn" data-quitar-marca>Ver '+esc(a)+' en todas las marcas</button><button class="btn o" data-quita="todo">Ver todo '+esc(fCol||fMarca)+'</button></div>';
 }
 document.addEventListener('click',e=>{ const q=e.target.closest('[data-quita]'); if(!q) return; e.stopPropagation();
-  const k=q.dataset.quita; if(k==='cat'||k==='todo') cat=''; if(k==='talla'||k==='todo') fTalla=''; if(k==='estado'||k==='todo') fEstado='';
+  const k=q.dataset.quita; if(k==='linea'||k==='todo'){ linea=''; LS.set('linea',''); } if(k==='cat'||k==='todo') cat=''; if(k==='talla'||k==='todo') fTalla=''; if(k==='estado'||k==='todo') fEstado='';
   render(); },true);
 // la franja de marcas se queda arriba al bajar; al cambiar de marca te regresa al inicio de los productos
 function alInicioDeProductos(){ const y=$('#anclaM').getBoundingClientRect().top+window.scrollY-56; if(window.scrollY>y+5) window.scrollTo({top:y}); }
@@ -614,7 +618,7 @@ function irDestino(dest,link){
   else if(dest.startsWith('col:')){ const [m,c]=dest.slice(4).split('|'); vista=''; cat=''; fMarca=m; fCol=c||'';
     if(!P.some(esDeCol)) fCol=''; // si todavía no subes sus productos, enseña la marca
     render(); }
-  document.getElementById('tabs').scrollIntoView({behavior:'smooth'});
+  document.getElementById('anclaM').scrollIntoView({behavior:'smooth'});
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
@@ -638,7 +642,7 @@ $('#ovMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-go]')
   if(g==='pago'){ pintarPago(); abrir('ovPago'); return; }
   if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; fCol=''; cat=''; }
   else if(g==='favs'||g==='drops'||g==='ofertas'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
-  cat=''; render(); document.getElementById('tabs').scrollIntoView({behavior:'smooth'}); });
+  cat=''; render(); document.getElementById('anclaM').scrollIntoView({behavior:'smooth'}); });
 $('#btnBuscar').addEventListener('click',()=>{ abrir('ovBuscar'); $('#q').value=''; buscar(); setTimeout(()=>$('#q').focus(),60); });
 function buscar(){ const q=$('#q').value.toLowerCase().trim(); const r=q?P.filter(p=>[p.nombre,p.marca,p.categoria,(p.colores||[]).map(c=>c.nombre).join(' ')].join(' ').toLowerCase().includes(q)):[];
   $('#qRes').innerHTML=q?(r.length?'<div class="grid">'+r.map(cardHTML).join('')+'</div>':'<p class="empty">No encontramos “'+esc(q)+'”.</p>'):''; }
@@ -650,7 +654,7 @@ function pintarFiltros(){
   // tipos de prenda: solo los que hay en la marca que estás viendo, con cuántos tiene
   const ci=CATS_INFO; chips($('#fCat'),[['','Todo · '+ci.total]].concat(ci.cats.filter(c=>ci.n[c]||c===cat).map(c=>[c,c+' · '+(ci.n[c]||0)])),cat,'c');
   // tallas: las de la marca y el tipo de prenda que estás viendo
-  const ts=new Set(); P.filter(p=>(!linea||!p.linea||p.linea===linea||p.linea==='unisex')&&(!fMarca||marcaDe(p)===fMarca)&&(!fCol||esDeCol(p))&&(!cat||catDe(p)===cat)).forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
+  const ts=new Set(); P.filter(p=>enLinea(p)&&(!fMarca||marcaDe(p)===fMarca)&&(!fCol||esDeCol(p))&&(!cat||catDe(p)===cat)).forEach(p=>tallasConStock(p).forEach(t=>ts.add(t)));
   if(fTalla) ts.add(fTalla);
   chips($('#fTalla'),[['','Todas']].concat([...ts].sort((a,b)=>{const i=ORDEN_T.indexOf(a),j=ORDEN_T.indexOf(b);return (i<0?99:i)-(j<0?99:j)||parseFloat(a)-parseFloat(b);}).map(t=>[t,t])),fTalla,'t');
   chips($('#fMarca'),[['','Todas']].concat(ordenMarcas(P.map(marcaDe)).map(m=>[m,m])),fMarca,'m');
