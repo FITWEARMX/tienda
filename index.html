@@ -474,13 +474,15 @@ function cardHTML(p){
 function render(){
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.linea===linea));
   const base=P.filter(p=>!linea||!p.linea||p.linea===linea||p.linea==='unisex');
-  pintarMarcas(base);
+  pintarMarcas(base.filter(p=>vista!=='ofertas'||ofertasDe(p).length>0));
   // las categorías cuentan solo lo de la marca elegida
-  const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&(vista!=='ea'||EA.ids.has(p.id)));
-  const n={}; enMarca.forEach(p=>{ const c=catDe(p); if(c) n[c]=(n[c]||0)+1; });
+  const enVista=p=>(vista!=='ea'||EA.ids.has(p.id))&&(vista!=='ofertas'||ofertasDe(p).length>0);
+  const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&enVista(p));
+  const n={}; enMarca.forEach(p=>{ const c=catDe(p); if(c) n[c]=(n[c]||0)+(vista==='ofertas'?ofertasDe(p).length:1); });
+  const nTodo=Object.values(n).reduce((a,b)=>a+b,0)||enMarca.length;
   const cats=CATS_FIJAS.concat(Object.keys(n).filter(c=>!CATS_FIJAS.includes(c)).sort());
-  if(cat&&!n[cat]&&!CATS_FIJAS.includes(cat)) cat='';
-  $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+enMarca.length+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
+  if(cat&&!n[cat]) cat=''; // si la marca no tiene de esa categoría, vuelve a Todo
+  $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+(vista==='ofertas'?nTodo:enMarca.length)+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
   $('#selM').hidden=!fMarca; $('#selM').innerHTML=fMarca?logoHTML(fMarca)+'<b>'+esc(fMarca)+'</b><button data-quitar-marca>Ver todas las marcas</button>':'';
   ponerLink();
   const prox=P.filter(p=>p.estado==='early'&&dropDate(p)&&dropDate(p)>new Date()).sort((a,b)=>dropDate(a)-dropDate(b))[0];
@@ -536,8 +538,8 @@ function renderHero(){
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
-$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; if(vista!=='ea') vista=''; render(); });
-document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; if(vista!=='ea') vista=''; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
+$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; render(); });
+document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
   if(e.target.closest('[data-quitar-marca]')){ fMarca=''; render(); } },true);
 window.addEventListener('hashchange',()=>{ if(leerLink()) render(); });
 document.addEventListener('click',e=>{
