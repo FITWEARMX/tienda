@@ -580,22 +580,24 @@ function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), 
   const todasC=CATS_FIJAS.concat(P.map(catDe).filter(Boolean)); const c=ps[0]&&todasC.find(x=>slug(x)===ps[0]); if(c){ cat=c; ok=true; }
   if(ok) vista=''; return ok; }
 /* Portada que se mueve: Early Access (si está cerrado), tus noticias y tu producto destacado. Cambia sola cada 5 segundos. */
-let PORTADA=[], heroTimer=null, heroI=0;
+let PORTADA=[], ORDEN_PORTADA=null, heroTimer=null, heroI=0;
+// Cada lámina de la portada; el orden lo eliges en tu Catálogo (📰 Portada)
 function laminas(){
-  const out=[];
-  if(typeof EA!=='undefined'&&EA.priv&&!EA.abierto&&EA.portada){
+  const L={};
+  if(typeof EA!=='undefined'&&EA.priv&&EA.portada){
     const d=dropDate({dropFecha:EA.fecha}), falta=d&&d>new Date();
-    out.push('<div class="sl ea" data-ea="abrir"><img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>🔒 EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
-      '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>Compra antes que nadie · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
-      '<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button></div></div>');
+    L.ea='<div class="sl ea" data-'+(EA.abierto?'dest="early"':'ea="abrir"')+'><img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>'+(EA.abierto?'🔓':'🔒')+' EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
+      '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>'+(EA.abierto?'Ya entraste':'Compra antes que nadie')+' · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
+      (EA.abierto?'<button class="btn w">Ver Early Access →</button>':'<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button>')+'</div></div>';
   }
-  PORTADA.forEach(n=>out.push('<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
+  PORTADA.forEach(n=>{ L[n.id]='<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
     '<div class="txt"><small>Lo que viene</small><h1>'+esc(n.titulo)+'</h1>'+(n.texto?'<p>'+esc(n.texto)+'</p>':'')+
-    (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'));
+    (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'; });
   const p=P.find(x=>x.destacado&&foto1(x))||P.filter(x=>x.estado==='early'&&foto1(x))[0];
   if(p){ const tit=p.estado==='early'?(p.estadoTxt||'Nuevo drop'):p.estado==='preventa'?'Preventa':'Destacado';
-    out.push('<div class="sl" data-id="'+esc(p.id)+'"><img src="'+esc(foto1(p))+'" alt=""><div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w">Ver ahora</button></div></div>'); }
-  return out;
+    L.destacado='<div class="sl" data-id="'+esc(p.id)+'"><img src="'+esc(foto1(p))+'" alt=""><div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w">Ver ahora</button></div></div>'; }
+  const orden=Array.isArray(ORDEN_PORTADA)?ORDEN_PORTADA:['ea'].concat(PORTADA.map(n=>n.id),['destacado']);
+  return orden.map(k=>L[k]).filter(Boolean);
 }
 function renderHero(){
   const ls=laminas(); clearInterval(heroTimer);
@@ -879,7 +881,7 @@ $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); 
 
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
-  PORTADA=(d.portada||[]).filter(n=>n&&n.foto&&n.titulo);
+  PORTADA=(d.portada||[]).filter(n=>n&&n.foto&&n.titulo); ORDEN_PORTADA=Array.isArray(d.portadaOrden)?d.portadaOrden:null;
   if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
