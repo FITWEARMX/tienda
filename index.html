@@ -395,13 +395,15 @@ function catDe(p){ const t=String(p.nombre||'').toLowerCase();
 const UNICA=/^(única|unica|one ?size|os|o\/s|default ?title|talla única)$/i;
 function esUnica(p,c){ const ks=Object.keys((c||{}).tallas||{}); return catDe(p)==='Accesorios'||(ks.length>0&&ks.every(k=>UNICA.test(k.trim()))); }
 function hayUnica(p,c){ return p.estado!=='disponible'||Object.values((c||{}).tallas||{}).some(v=>+v>0); }
+// una colección (por ejemplo la de una noticia): "Waffle Knit Collection"
+const esDeCol=p=>!!fCol&&coleccionDe(p).toLowerCase()===fCol.toLowerCase();
 function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
 function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
 // orden de las marcas: el de tu franja; las que no estén en la lista, al final
 function ordenMarcas(ns){ return [...new Set(ns)].filter(Boolean).sort((a,b)=>{ const i=MARCAS.findIndex(o=>o.n===a),j=MARCAS.findIndex(o=>o.n===b); return (i<0?99:i)-(j<0?99:j)||a.localeCompare(b); }); }
 /* Categorías: estas siempre salen; las demás solo si hay productos */
 const CATS_FIJAS=['Playeras','Shorts','Pants','Hoodies','Chamarras','Compresión','Accesorios'];
-let P=[], linea=LS.get('linea',''), cat='', vista='', orden='nuevo', fTalla='', fMarca='', fEstado='';
+let P=[], linea=LS.get('linea',''), cat='', vista='', orden='nuevo', fTalla='', fMarca='', fEstado='', fCol='';
 let favs=new Set(LS.get('favs',[])), bolsa=LS.get('bolsa',[]);
 let cur=null, curColor=null, curTalla='';
 
@@ -451,6 +453,7 @@ function filtrar(){
   if(linea) r=r.filter(p=>!p.linea||p.linea===linea||p.linea==='unisex');
   if(cat) r=r.filter(p=>catDe(p)===cat);
   if(fMarca) r=r.filter(p=>marcaDe(p)===fMarca);
+  if(fCol) r=r.filter(p=>esDeCol(p));
   if(fTalla) r=r.filter(p=>tallasConStock(p).has(fTalla));
   if(fEstado==='ofertas') r=r.filter(p=>ofertasDe(p).length);
   else if(fEstado) r=r.filter(p=>fEstado==='disponible'?p.estado==='disponible':p.estado!=='disponible');
@@ -494,13 +497,13 @@ function render(){
   pintarMarcas(base.filter(p=>vista!=='ofertas'||ofertasDe(p).length>0));
   // las categorías cuentan solo lo de la marca elegida
   const enVista=p=>(vista!=='ea'||EA.ids.has(p.id))&&(vista!=='ofertas'||ofertasDe(p).length>0);
-  const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&enVista(p));
+  const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&(!fCol||esDeCol(p))&&enVista(p));
   const n={}; enMarca.forEach(p=>{ const c=catDe(p); if(c) n[c]=(n[c]||0)+(vista==='ofertas'?ofertasDe(p).length:1); });
   const nTodo=Object.values(n).reduce((a,b)=>a+b,0)||enMarca.length;
   const cats=CATS_FIJAS.concat(Object.keys(n).filter(c=>!CATS_FIJAS.includes(c)).sort());
   if(cat&&!n[cat]) cat=''; // si la marca no tiene de esa categoría, vuelve a Todo
   $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+(vista==='ofertas'?nTodo:enMarca.length)+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
-  $('#selM').hidden=!fMarca; $('#selM').innerHTML=fMarca?logoHTML(fMarca)+'<b>'+esc(fMarca)+'</b><button data-quitar-marca>Ver todas las marcas</button>':'';
+  $('#selM').hidden=!fMarca; $('#selM').innerHTML=fMarca?logoHTML(fMarca)+'<b>'+esc(fCol||fMarca)+'</b>'+(fCol?'<button data-quitar-col>Ver todo '+esc(fMarca)+'</button>':'<button data-quitar-marca>Ver todas las marcas</button>'):'';
   ponerLink();
   const prox=P.filter(p=>p.estado==='early'&&dropDate(p)&&dropDate(p)>new Date()).sort((a,b)=>dropDate(a)-dropDate(b))[0];
   $('#dropBox').innerHTML=prox&&!vista?'<button class="drop" data-id="'+esc(prox.id)+'"><div><small>'+esc(prox.estadoTxt||'Próximo drop')+'</small><b>'+esc([prox.marca,prox.nombre].filter(Boolean).join(' '))+'</b></div><div class="cd" data-cd="'+esc(prox.dropFecha)+'">'+cuenta(dropDate(prox))+'</div></button>':'';
@@ -523,7 +526,7 @@ function porMarca(r,pinta,prod){ prod=prod||(x=>x); const g={}; r.forEach(x=>{ c
   return ordenMarcas(Object.keys(g)).map(m=>'<div class="grupo" style="grid-column:1/-1">'+logoHTML(m)+'<b>'+esc(m)+'</b><button data-ver-marca="'+esc(m)+'">Ver todo →</button></div>'+g[m].map(pinta).join('')).join(''); }
 function pintarMarcas(base){
   const ms=ordenMarcas(base.filter(p=>vista!=='ea'||EA.ids.has(p.id)).map(marcaDe));
-  if(fMarca&&!ms.includes(fMarca)) fMarca='';
+  if(fMarca&&!ms.includes(fMarca)){ fMarca=''; fCol=''; }
   $('#marcas').classList.toggle('sel',!!fMarca);
   $('#marcas').innerHTML=ms.length>1||fMarca?ms.map(m=>'<button class="mk'+(infoMarca(m).alta?' alta':'')+(fMarca===m?' on':'')+'" data-marca="'+esc(m)+'" aria-pressed="'+(fMarca===m)+'" title="'+esc(m)+'">'+(infoMarca(m).logo?'<img src="'+esc(infoMarca(m).logo)+'" alt="'+esc(m)+'">':'<span>'+esc(m)+'</span>')+'</button>').join(''):'';
 }
@@ -569,16 +572,20 @@ function renderHero(){
 function irDestino(dest,link){
   if(!dest) return;
   if(dest==='url'){ if(link) window.open(link,'_blank','noopener'); return; }
-  if(dest==='early'){ if(EA.abierto){ vista='ea'; fMarca=''; cat=''; render(); } else if(EA.priv) abrirEA(); }
-  else if(dest==='ofertas'||dest==='drops'){ vista=dest; fMarca=''; cat=''; render(); }
-  else if(dest.startsWith('marca:')){ vista=''; cat=''; fMarca=dest.slice(6); render(); }
+  if(dest==='early'){ if(EA.abierto){ vista='ea'; fMarca=''; fCol=''; cat=''; render(); } else if(EA.priv) abrirEA(); }
+  else if(dest==='ofertas'||dest==='drops'){ vista=dest; fMarca=''; fCol=''; cat=''; render(); }
+  else if(dest.startsWith('marca:')){ vista=''; cat=''; fCol=''; fMarca=dest.slice(6); render(); }
+  else if(dest.startsWith('col:')){ const [m,c]=dest.slice(4).split('|'); vista=''; cat=''; fMarca=m; fCol=c||'';
+    if(!P.some(esDeCol)) fCol=''; // si todavía no subes sus productos, enseña la marca
+    render(); }
   document.getElementById('tabs').scrollIntoView({behavior:'smooth'});
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
-$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; render(); });
+$('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca]'); if(!b) return; fMarca=fMarca===b.dataset.marca?'':b.dataset.marca; fCol=''; render(); });
 document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
-  if(e.target.closest('[data-quitar-marca]')){ fMarca=''; render(); } },true);
+  if(e.target.closest('[data-quitar-marca]')){ fMarca=''; fCol=''; render(); }
+  if(e.target.closest('[data-quitar-col]')){ fCol=''; render(); } },true);
 window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); abierto.slice().forEach(cerrar); verPedido(ped); return; } if(leerLink()) render(); });
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
@@ -590,10 +597,10 @@ setInterval(()=>document.querySelectorAll('[data-cd]').forEach(el=>{ const p={dr
 
 /* ---------- menú, búsqueda y filtros ---------- */
 $('#btnMenu').addEventListener('click',()=>abrir('ovMenu'));
-$('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; fMarca=''; render(); window.scrollTo(0,0); });
+$('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; fMarca=''; fCol=''; render(); window.scrollTo(0,0); });
 $('#ovMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(!b) return; const g=b.dataset.go; cerrar('ovMenu');
   if(g==='pago'){ pintarPago(); abrir('ovPago'); return; }
-  if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; cat=''; }
+  if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; fCol=''; cat=''; }
   else if(g==='favs'||g==='drops'||g==='ofertas'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
   cat=''; render(); document.getElementById('tabs').scrollIntoView({behavior:'smooth'}); });
 $('#btnBuscar').addEventListener('click',()=>{ abrir('ovBuscar'); $('#q').value=''; buscar(); setTimeout(()=>$('#q').focus(),60); });
@@ -611,9 +618,9 @@ function pintarFiltros(){
 }
 $('#btnFiltrar').addEventListener('click',()=>{ pintarFiltros(); abrir('ovFiltro'); });
 $('#ovFiltro').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return;
-  if('o' in b.dataset) orden=b.dataset.o; if('t' in b.dataset) fTalla=b.dataset.t; if('m' in b.dataset) fMarca=b.dataset.m; if('e' in b.dataset) fEstado=b.dataset.e;
+  if('o' in b.dataset) orden=b.dataset.o; if('t' in b.dataset) fTalla=b.dataset.t; if('m' in b.dataset){ fMarca=b.dataset.m; fCol=''; } if('e' in b.dataset) fEstado=b.dataset.e;
   pintarFiltros(); render(); });
-$('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; fTalla=''; fMarca=''; fEstado=''; pintarFiltros(); render(); });
+$('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; fTalla=''; fMarca=''; fCol=''; fEstado=''; pintarFiltros(); render(); });
 
 /* ---------- producto ---------- */
 function abrirProducto(id,colorK){
@@ -817,8 +824,8 @@ function pintarEA(){
     :EA.portada?'':'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
 }
 function abrirEA(){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').href=wa('Hola FITWEARMX 👋 ¿Me compartes la contraseña del Early Access?'); abrir('ovEA'); setTimeout(()=>$('#eaClave').focus(),60); }
-$('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='ea'; fMarca=''; cat=''; render(); } });
-async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='ea'; fMarca=''; cat=''; render(); toast('¡Bienvenido al Early Access!'); } }
+$('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='ea'; fMarca=''; fCol=''; cat=''; render(); } });
+async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='ea'; fMarca=''; fCol=''; cat=''; render(); toast('¡Bienvenido al Early Access!'); } }
 $('#eaEntrar').addEventListener('click',intentarEA);
 $('#hero').addEventListener('click',e=>{
   const hd=e.target.closest('[data-hd]'); if(hd){ e.stopPropagation(); const sl=$('#slides'); sl.scrollTo({left:+hd.dataset.hd*sl.clientWidth,behavior:'smooth'}); return; }
