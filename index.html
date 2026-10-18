@@ -43,13 +43,20 @@ img{display:block;max-width:100%}
 
 /* portada */
 .hero{position:relative;height:min(62vh,520px);background:#1b1b1d;color:#fff;overflow:hidden;display:flex;align-items:flex-end}
-.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.82}
-.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
-.hero .txt{position:relative;z-index:1;padding:24px 20px;max-width:1200px;width:100%;margin:0 auto}
+.slides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.slides::-webkit-scrollbar{display:none}
+.sl{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:start;display:flex;align-items:flex-end;cursor:pointer}
+.sl>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.82}
+.sl::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
+.sl .txt{position:relative;z-index:1;padding:24px 20px 40px;max-width:1200px;width:100%;margin:0 auto}
+.sl .txt p{margin:-6px 0 16px;font-size:15px;opacity:.92}
+.hdots{position:absolute;left:0;right:0;bottom:14px;z-index:2;display:flex;justify-content:center;gap:6px}
+.hdots button{all:unset;cursor:pointer;width:7px;height:7px;border-radius:4px;background:rgba(255,255,255,.55);transition:width .25s}
+.hdots button.on{width:22px;background:#fff}
 .hero small{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.85;margin-bottom:8px}
-.hero.ea::after{background:linear-gradient(to top,rgba(10,6,20,.88),rgba(10,6,20,.15) 70%)}
-.hero.ea small b{background:var(--violet);color:#fff;padding:3px 8px;border-radius:4px;letter-spacing:.12em;margin-right:8px}
-.hero.ea p{margin:-6px 0 16px;font-size:15px;opacity:.9}
+.sl.ea::after{background:linear-gradient(to top,rgba(10,6,20,.88),rgba(10,6,20,.15) 70%)}
+.sl.ea small b{background:var(--violet);color:#fff;padding:3px 8px;border-radius:4px;letter-spacing:.12em;margin-right:8px}
+.sl.ea p{margin:-6px 0 16px;font-size:15px;opacity:.9}
 .hero h1{margin:0 0 16px;font-size:clamp(28px,8vw,52px);line-height:1;letter-spacing:-.01em;text-transform:uppercase;font-weight:800}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 22px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-weight:700;font-size:15px;text-decoration:none;white-space:nowrap}
 .btn.w{background:#fff;color:var(--ink);border-color:#fff}
@@ -529,22 +536,43 @@ function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), 
   const m=ordenMarcas(P.map(marcaDe)).find(x=>infoMarca(x).k===ps[0]); if(m){ fMarca=m; ps.shift(); ok=true; }
   const todasC=CATS_FIJAS.concat(P.map(catDe).filter(Boolean)); const c=ps[0]&&todasC.find(x=>slug(x)===ps[0]); if(c){ cat=c; ok=true; }
   if(ok) vista=''; return ok; }
-function renderHero(){
-  // Early Access cerrado: la portada de arriba presume el drop y pide la contraseña
+/* Portada que se mueve: Early Access (si está cerrado), tus noticias y tu producto destacado. Cambia sola cada 5 segundos. */
+let PORTADA=[], heroTimer=null, heroI=0;
+function laminas(){
+  const out=[];
   if(typeof EA!=='undefined'&&EA.priv&&!EA.abierto&&EA.portada){
     const d=dropDate({dropFecha:EA.fecha}), falta=d&&d>new Date();
-    $('#hero').hidden=false; $('#hero').classList.add('ea');
-    $('#hero').innerHTML='<img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>🔒 EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
+    out.push('<div class="sl ea" data-ea="abrir"><img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>🔒 EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
       '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>Compra antes que nadie · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
-      '<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button></div>';
-    return;
+      '<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button></div></div>');
   }
-  $('#hero').classList.remove('ea');
+  PORTADA.forEach(n=>out.push('<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
+    '<div class="txt"><small>Lo que viene</small><h1>'+esc(n.titulo)+'</h1>'+(n.texto?'<p>'+esc(n.texto)+'</p>':'')+
+    (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'));
   const p=P.find(x=>x.destacado&&foto1(x))||P.filter(x=>x.estado==='early'&&foto1(x))[0];
-  if(!p){ $('#hero').hidden=true; return; }
-  $('#hero').hidden=false;
-  const tit=p.estado==='early'?(p.estadoTxt||'Nuevo drop'):p.estado==='preventa'?'Preventa':'Destacado';
-  $('#hero').innerHTML='<img src="'+esc(foto1(p))+'" alt="">'+'<div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w" data-id="'+esc(p.id)+'">Ver ahora</button></div>';
+  if(p){ const tit=p.estado==='early'?(p.estadoTxt||'Nuevo drop'):p.estado==='preventa'?'Preventa':'Destacado';
+    out.push('<div class="sl" data-id="'+esc(p.id)+'"><img src="'+esc(foto1(p))+'" alt=""><div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w">Ver ahora</button></div></div>'); }
+  return out;
+}
+function renderHero(){
+  const ls=laminas(); clearInterval(heroTimer);
+  if(!ls.length){ $('#hero').hidden=true; return; }
+  $('#hero').hidden=false; $('#hero').classList.remove('ea');
+  $('#hero').innerHTML='<div class="slides" id="slides">'+ls.join('')+'</div>'+(ls.length>1?'<div class="hdots">'+ls.map((_,i)=>'<button data-hd="'+i+'" aria-label="Portada '+(i+1)+'"'+(i?'':' class="on"')+'></button>').join('')+'</div>':'');
+  heroI=0; const sl=$('#slides');
+  sl.addEventListener('scroll',()=>{ const i=Math.round(sl.scrollLeft/sl.clientWidth); if(i!==heroI){ heroI=i; document.querySelectorAll('.hdots button').forEach((b,j)=>b.classList.toggle('on',j===i)); } },{passive:true});
+  if(ls.length>1){ const sig=()=>{ if(document.hidden||!$('#pv').hidden) return; const i=(heroI+1)%ls.length; sl.scrollTo({left:i*sl.clientWidth,behavior:'smooth'}); };
+    heroTimer=setInterval(sig,5000);
+    ['pointerdown','touchstart','wheel'].forEach(ev=>sl.addEventListener(ev,()=>{ clearInterval(heroTimer); heroTimer=setInterval(sig,8000); },{passive:true})); }
+}
+// a dónde lleva cada noticia
+function irDestino(dest,link){
+  if(!dest) return;
+  if(dest==='url'){ if(link) window.open(link,'_blank','noopener'); return; }
+  if(dest==='early'){ if(EA.abierto){ vista='ea'; fMarca=''; cat=''; render(); } else if(EA.priv) abrirEA(); }
+  else if(dest==='ofertas'||dest==='drops'){ vista=dest; fMarca=''; cat=''; render(); }
+  else if(dest.startsWith('marca:')){ vista=''; cat=''; fMarca=dest.slice(6); render(); }
+  document.getElementById('tabs').scrollIntoView({behavior:'smooth'});
 }
 $('#tabs').addEventListener('click',e=>{ const b=e.target.closest('[data-linea]'); if(!b) return; linea=b.dataset.linea; LS.set('linea',linea); vista=''; render(); });
 $('#cats').addEventListener('click',e=>{ const b=e.target.closest('[data-cat]'); if(!b) return; cat=b.dataset.cat; render(); });
@@ -792,11 +820,15 @@ function abrirEA(){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').
 $('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='ea'; fMarca=''; cat=''; render(); } });
 async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='ea'; fMarca=''; cat=''; render(); toast('¡Bienvenido al Early Access!'); } }
 $('#eaEntrar').addEventListener('click',intentarEA);
-$('#hero').addEventListener('click',e=>{ if(e.target.closest('[data-ea="abrir"]')){ e.stopPropagation(); abrirEA(); } });
+$('#hero').addEventListener('click',e=>{
+  const hd=e.target.closest('[data-hd]'); if(hd){ e.stopPropagation(); const sl=$('#slides'); sl.scrollTo({left:+hd.dataset.hd*sl.clientWidth,behavior:'smooth'}); return; }
+  if(e.target.closest('[data-ea="abrir"]')){ e.stopPropagation(); abrirEA(); return; }
+  const n=e.target.closest('[data-dest]'); if(n){ e.stopPropagation(); irDestino(n.dataset.dest,n.dataset.link); } });
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
 
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
+  PORTADA=(d.portada||[]).filter(n=>n&&n.foto&&n.titulo);
   if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
