@@ -358,17 +358,26 @@ const ig='https://www.instagram.com/'+TIENDA.instagram+'/';
 
 /* Marcas: cada una con su logo. alias = cómo puede venir escrita */
 const MARCAS=[
-  {k:'youngla',n:'YoungLA',logo:'logos/youngla.png',re:/young\s*la/i},
+  {k:'youngla',n:'YoungLA',logo:'logos/youngla.png',re:/young\s*la|rgmnt/i}, // RGMNT es una línea de YoungLA
   {k:'gymshark',n:'Gymshark',logo:'logos/gymshark.png',re:/gym\s*shark/i},
   {k:'breathe-divinity',n:'Breathe Divinity',logo:'logos/breathe-divinity.png',re:/breathe\s*divinity/i},
   {k:'darc-sport',n:'Darc Sport',logo:'logos/darc-sport.png',re:/darc\s*sport/i,alta:1},
-  {k:'civil-regime',n:'Civil Regime',logo:'logos/civil-regime.png',re:/civil\s*(regime|clothing)/i,alta:1},
+  // Civil Regime: sus colecciones (13 Days, Corpse Bride…) van dentro de Civil Regime
+  {k:'civil-regime',n:'Civil Regime',logo:'logos/civil-regime.png',re:/civil\s*(regime|clothing)|13\s*days|corpse\s*bride|friday\s*the\s*13|roses\s*bleed|spider\s*man\s*birthday|zombies\s*assemble/i,alta:1},
   {k:'dfyne',n:'DFYNE',logo:'logos/dfyne.png',re:/^dfyne/i},
-  {k:'controlled-insanity',n:'Controlled Insanity',logo:'logos/controlled-insanity.png',re:/controlled\s*insanity/i},
+  {k:'controlled-insanity',n:'Controlled Insanity',logo:'logos/controlled-insanity.png',re:/controlled\s*insanity/i,alta:1},
   {k:'aybl',n:'AYBL',logo:'logos/aybl.png',re:/^aybl/i}
 ];
 const slug=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 function marcaDe(p){ const m=String(p.marca||'').trim(); const x=MARCAS.find(o=>o.re.test(m)); return x?x.n:m; }
+// la colección: la que trae el producto o, si la marca venía con el nombre de la colección, ese nombre
+function coleccionDe(p){ if(p.coleccion) return p.coleccion; const m=String(p.marca||'').trim(), o=marcaDe(p);
+  return m&&m.replace(/\s+/g,'').toLowerCase()!==o.replace(/\s+/g,'').toLowerCase()?m.replace(/\w\S*/g,w=>/^[A-Z]+$/.test(w)&&!/[AEIOU]/.test(w)?w:w[0].toUpperCase()+w.slice(1).toLowerCase()):''; }
+// la categoría: chamarras y compresión van en su propia sección aunque vengan como hoodie, biker o playera
+function catDe(p){ const t=String(p.nombre||'').toLowerCase();
+  if(/jacket|chamarra|windbreaker|bomber|puffer|\bcoat\b|parka|anorak|varsity/.test(t)) return 'Chamarras';
+  if(/compression|compresi|base ?layer/.test(t)) return 'Compresión';
+  return p.categoria||''; }
 function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
 function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
 // orden de las marcas: el de tu franja; las que no estén en la lista, al final
@@ -423,7 +432,7 @@ function filtrar(){
   else if(vista==='drops') r=r.filter(p=>p.estado==='early'||p.estado==='preventa'||p.estado==='camino');
   else if(vista==='ea') r=r.filter(p=>EA.ids.has(p.id));
   if(linea) r=r.filter(p=>!p.linea||p.linea===linea||p.linea==='unisex');
-  if(cat) r=r.filter(p=>p.categoria===cat);
+  if(cat) r=r.filter(p=>catDe(p)===cat);
   if(fMarca) r=r.filter(p=>marcaDe(p)===fMarca);
   if(fTalla) r=r.filter(p=>tallasConStock(p).has(fTalla));
   if(fEstado==='ofertas') r=r.filter(p=>ofertasDe(p).length);
@@ -468,7 +477,7 @@ function render(){
   pintarMarcas(base);
   // las categorías cuentan solo lo de la marca elegida
   const enMarca=base.filter(p=>(!fMarca||marcaDe(p)===fMarca)&&(vista!=='ea'||EA.ids.has(p.id)));
-  const n={}; enMarca.forEach(p=>{ if(p.categoria) n[p.categoria]=(n[p.categoria]||0)+1; });
+  const n={}; enMarca.forEach(p=>{ const c=catDe(p); if(c) n[c]=(n[c]||0)+1; });
   const cats=CATS_FIJAS.concat(Object.keys(n).filter(c=>!CATS_FIJAS.includes(c)).sort());
   if(cat&&!n[cat]&&!CATS_FIJAS.includes(cat)) cat='';
   $('#cats').innerHTML=P.length?['<button class="chip'+(!cat?' on':'')+'" data-cat="">Todo<small>'+enMarca.length+'</small></button>'].concat(cats.map(c=>'<button class="chip'+(cat===c?' on':'')+(n[c]?'':' cero')+'" data-cat="'+esc(c)+'">'+esc(c)+(n[c]?'<small>'+n[c]+'</small>':'')+'</button>')).join(''):'';
@@ -506,7 +515,7 @@ function ponerLink(){ if(!linkListo||vista||!$('#pv').hidden) return; const h=[f
 function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), h=h0.toLowerCase(); if(!h||P.some(p=>p.id===h0)) return false;
   const ps=h.split('/'); let ok=false;
   const m=ordenMarcas(P.map(marcaDe)).find(x=>infoMarca(x).k===ps[0]); if(m){ fMarca=m; ps.shift(); ok=true; }
-  const todasC=CATS_FIJAS.concat(P.map(p=>p.categoria).filter(Boolean)); const c=ps[0]&&todasC.find(x=>slug(x)===ps[0]); if(c){ cat=c; ok=true; }
+  const todasC=CATS_FIJAS.concat(P.map(catDe).filter(Boolean)); const c=ps[0]&&todasC.find(x=>slug(x)===ps[0]); if(c){ cat=c; ok=true; }
   if(ok) vista=''; return ok; }
 function renderHero(){
   // Early Access cerrado: la portada de arriba presume el drop y pide la contraseña
@@ -582,7 +591,7 @@ function pintarProducto(){
   $('#gal').innerHTML=fs.map((f,i)=>'<img src="'+esc(f)+'" alt="'+esc(p.nombre)+' foto '+(i+1)+'"'+(i?' loading="lazy"':'')+'>').join('')||'<img alt="">';
   $('#dots').innerHTML=fs.length>1?fs.map((_,i)=>'<i'+(i?'':' class="on"')+'></i>').join(''):'';
   $('#gal').scrollLeft=0;
-  $('#pvBrand').textContent=[marcaDe(p),p.coleccion,p.categoria].filter(Boolean).join(' · ');
+  $('#pvBrand').textContent=[marcaDe(p),coleccionDe(p),catDe(p)].filter(Boolean).join(' · ');
   $('#pvName').textContent=p.nombre;
   $('#pvPrice').innerHTML=of?'<span class="rd">'+money(pc)+' MXN</span><s>'+money(pb)+'</s>':money(pc)+' MXN';
   const est={early:['drop',p.estadoTxt||'Early Access'],preventa:['pre',p.estadoTxt||'Preventa'],camino:['cam',p.estadoTxt||'En camino'],disponible:['disp','Entrega inmediata']}[p.estado];
@@ -601,7 +610,7 @@ function pintarProducto(){
   const ts=tallasDe(p,c), todas=ordenaT(ts.concat((c.agotadas||[]).filter(t=>!ts.includes(t))));
   $('#pvSizes').innerHTML=todas.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(ts.includes(t)&&hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
   if(c.agotado){ $('#pvAparta').hidden=true; $('#pvNote').hidden=true; }
-  $('#pvErr').hidden=true; $('#pvDesc').textContent=p.descripcion||'';
+  $('#pvErr').hidden=true; $('#pvDesc').textContent=[coleccionDe(p)?'Colección: '+coleccionDe(p):'',p.descripcion||''].filter(Boolean).join('\n');
   $('#pvFav').classList.toggle('on',favs.has(p.id));
   $('#pvFav').querySelector('svg').style.fill=favs.has(p.id)?'#0b0b0c':'none';
   const sinStock=p.estado==='disponible'&&!tallasConStock(p).size;
