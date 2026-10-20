@@ -46,7 +46,8 @@ img{display:block;max-width:100%}
 .slides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .slides::-webkit-scrollbar{display:none}
 .sl{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:start;display:flex;align-items:flex-end;cursor:pointer}
-.sl>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.85}
+.sl>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1;background:#000}
+.sl.convideo>img{opacity:0}
 .sl>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.82}
 .sl::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
 .sl .txt{position:relative;z-index:1;padding:24px 20px 40px;max-width:1200px;width:100%;margin:0 auto}
@@ -588,7 +589,7 @@ function laminas(){
   // video de la noticia: horizontal en computadora, vertical en celular; la foto queda debajo por si no carga
   const quieto=matchMedia('(prefers-reduced-motion: reduce)').matches||(navigator.connection&&navigator.connection.saveData), cel=matchMedia('(max-width:700px)').matches;
   const vidDe=n=>n&&n.video&&!quieto?(cel?(n.video.v||n.video.h):(n.video.h||n.video.v)):'';
-  const fondo=(foto,vs)=>'<img src="'+esc(foto)+'" alt="">'+(vs?'<video src="'+esc(vs)+'" poster="'+esc(foto)+'" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video>':'');
+  const fondo=(foto,vs)=>'<img src="'+esc(foto)+'" alt="">'+(vs?'<video src="'+esc(vs)+'" poster="'+esc(foto)+'" autoplay muted loop playsinline preload="metadata" onplaying="this.parentNode.classList.add(\'convideo\')" onerror="this.parentNode.classList.remove(\'convideo\');this.remove()"></video>':'');
   const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'');
   // ¿esta noticia es del mismo drop que este Early Access? (su título o su destino trae la marca del drop)
   const mismoDrop=(n,g)=>{ const m=norm(g.marca); return !!m&&(norm(n.titulo).includes(m)||norm(n.destino).includes(m)); };
