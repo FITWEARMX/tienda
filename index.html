@@ -46,6 +46,7 @@ img{display:block;max-width:100%}
 .slides{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .slides::-webkit-scrollbar{display:none}
 .sl{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:start;display:flex;align-items:flex-end;cursor:pointer}
+.sl>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.85}
 .sl>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.82}
 .sl::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
 .sl .txt{position:relative;z-index:1;padding:24px 20px 40px;max-width:1200px;width:100%;margin:0 auto}
@@ -590,7 +591,11 @@ function laminas(){
       '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>'+(EA.abierto?'Ya entraste':'Compra antes que nadie')+' · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
       (EA.abierto?'<button class="btn w">Ver Early Access →</button>':'<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button>')+'</div></div>';
   }
-  PORTADA.forEach(n=>{ L[n.id]='<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
+  // video de la noticia: horizontal en computadora, vertical en celular; la foto queda debajo por si no carga
+  const quieto=matchMedia('(prefers-reduced-motion: reduce)').matches||(navigator.connection&&navigator.connection.saveData), cel=matchMedia('(max-width:700px)').matches;
+  PORTADA.forEach(n=>{ const vs=n.video&&!quieto?(cel?(n.video.v||n.video.h):(n.video.h||n.video.v)):'';
+    L[n.id]='<div class="sl" data-dest="'+esc(n.destino||'')+'" data-link="'+esc(n.link||'')+'"><img src="'+esc(n.foto)+'" alt="">'+
+    (vs?'<video src="'+esc(vs)+'" poster="'+esc(n.foto)+'" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video>':'')+
     '<div class="txt"><small>Lo que viene</small><h1>'+esc(n.titulo)+'</h1>'+(n.texto?'<p>'+esc(n.texto)+'</p>':'')+
     (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'; });
   // destacado: el que marcaste con ⭐; si no hay, un drop, pero nunca uno que ya sale en la lámina del Early Access
@@ -608,7 +613,9 @@ function renderHero(){
   $('#hero').innerHTML='<div class="slides" id="slides">'+ls.join('')+'</div>'+(ls.length>1?'<div class="hdots">'+ls.map((_,i)=>'<button data-hd="'+i+'" aria-label="Portada '+(i+1)+'"'+(i?'':' class="on"')+'></button>').join('')+'</div>':'');
   heroI=0; const sl=$('#slides');
   sl.addEventListener('scroll',()=>{ const i=Math.round(sl.scrollLeft/sl.clientWidth); if(i!==heroI){ heroI=i; document.querySelectorAll('.hdots button').forEach((b,j)=>b.classList.toggle('on',j===i)); } },{passive:true});
-  if(ls.length>1){ const sig=()=>{ if(document.hidden||!$('#pv').hidden) return; const i=(heroI+1)%ls.length; sl.scrollTo({left:i*sl.clientWidth,behavior:'smooth'}); };
+  let desde=Date.now(); sl.addEventListener('scroll',()=>{ desde=Date.now(); },{passive:true});
+  if(ls.length>1){ const sig=()=>{ if(document.hidden||!$('#pv').hidden) return;
+    const act=sl.children[heroI]; if(act&&act.querySelector('video')&&Date.now()-desde<14000) return; /* deja ver el video */ const i=(heroI+1)%ls.length; sl.scrollTo({left:i*sl.clientWidth,behavior:'smooth'}); };
     heroTimer=setInterval(sig,5000);
     ['pointerdown','touchstart','wheel'].forEach(ev=>sl.addEventListener(ev,()=>{ clearInterval(heroTimer); heroTimer=setInterval(sig,8000); },{passive:true})); }
 }
