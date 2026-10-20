@@ -585,12 +585,11 @@ let PORTADA=[], ORDEN_PORTADA=null, heroTimer=null, heroI=0;
 // Cada lámina de la portada; el orden lo eliges en tu Catálogo (📰 Portada)
 function laminas(){
   const L={};
-  if(typeof EA!=='undefined'&&EA.priv&&EA.portada){
-    const d=dropDate({dropFecha:EA.fecha}), falta=d&&d>new Date();
-    L.ea='<div class="sl ea" data-'+(EA.abierto?'dest="early"':'ea="abrir"')+'><img src="'+esc(EA.portada)+'" alt=""><div class="txt"><small><b>'+(EA.abierto?'🔓':'🔒')+' EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(EA.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
-      '<h1>Nuevo drop'+(EA.marca?' de '+esc(EA.marca):'')+'</h1><p>'+(EA.abierto?'Ya entraste':'Compra antes que nadie')+' · '+EA.n+(EA.n===1?' producto':' productos')+'</p>'+
-      (EA.abierto?'<button class="btn w">Ver Early Access →</button>':'<button class="btn w" data-ea="abrir">🔒 Entrar con contraseña</button>')+'</div></div>';
-  }
+  const LEA=(typeof EA!=='undefined'?EA.grupos:[]).map((g,gi)=>{ if(!g.portada) return '';
+    const d=dropDate({dropFecha:g.fecha}), falta=d&&d>new Date();
+    return '<div class="sl ea" data-'+(g.abierto?'dest="ea:'+gi+'"':'ea="abrir" data-g="'+gi+'"')+'><img src="'+esc(g.portada)+'" alt=""><div class="txt"><small><b>'+(g.abierto?'🔓':'🔒')+' EARLY ACCESS</b>'+(falta?'Sale en <span data-cd="'+esc(g.fecha)+'">'+cuenta(d)+'</span>':'Ya disponible')+'</small>'+
+      '<h1>Nuevo drop'+(g.marca?' de '+esc(g.marca):'')+'</h1><p>'+(g.abierto?'Ya entraste':'Compra antes que nadie')+' · '+g.n+(g.n===1?' producto':' productos')+'</p>'+
+      (g.abierto?'<button class="btn w">Ver Early Access →</button>':'<button class="btn w" data-ea="abrir" data-g="'+gi+'">🔒 Entrar con contraseña</button>')+'</div></div>'; }).filter(Boolean);
   // video de la noticia: horizontal en computadora, vertical en celular; la foto queda debajo por si no carga
   const quieto=matchMedia('(prefers-reduced-motion: reduce)').matches||(navigator.connection&&navigator.connection.saveData), cel=matchMedia('(max-width:700px)').matches;
   PORTADA.forEach(n=>{ const vs=n.video&&!quieto?(cel?(n.video.v||n.video.h):(n.video.h||n.video.v)):'';
@@ -599,12 +598,12 @@ function laminas(){
     '<div class="txt"><small>Lo que viene</small><h1>'+esc(n.titulo)+'</h1>'+(n.texto?'<p>'+esc(n.texto)+'</p>':'')+
     (n.destino?'<button class="btn w">'+esc(n.boton||'Ver ahora')+'</button>':'')+'</div></div>'; });
   // destacado: el que marcaste con ⭐; si no hay, un drop, pero nunca uno que ya sale en la lámina del Early Access
-  const yaEnEA=p=>!!L.ea&&EA.ids.has(p.id);
-  const p=P.find(x=>x.destacado&&foto1(x)&&!yaEnEA(x))||(L.ea?null:P.filter(x=>x.estado==='early'&&foto1(x))[0]);
+  const yaEnEA=p=>LEA.length>0&&EA.ids.has(p.id);
+  const p=P.find(x=>x.destacado&&foto1(x)&&!yaEnEA(x))||(LEA.length?null:P.filter(x=>x.estado==='early'&&foto1(x))[0]);
   if(p){ const tit=p.estado==='early'?(p.estadoTxt||'Nuevo drop'):p.estado==='preventa'?'Preventa':'Destacado';
     L.destacado='<div class="sl" data-id="'+esc(p.id)+'"><img src="'+esc(foto1(p))+'" alt=""><div class="txt"><small>'+esc(tit)+'</small><h1>'+esc(p.nombre)+'</h1><button class="btn w">Ver ahora</button></div></div>'; }
   const orden=Array.isArray(ORDEN_PORTADA)?ORDEN_PORTADA:['ea'].concat(PORTADA.map(n=>n.id),['destacado']);
-  return orden.map(k=>L[k]).filter(Boolean);
+  return orden.flatMap(k=>k==='ea'?LEA:[L[k]]).filter(Boolean);
 }
 function renderHero(){
   const ls=laminas(); clearInterval(heroTimer);
@@ -623,6 +622,7 @@ function renderHero(){
 function irDestino(dest,link){
   if(!dest) return;
   if(dest==='url'){ if(link) window.open(link,'_blank','noopener'); return; }
+  if(dest.startsWith('ea:')){ verDrop(EA.grupos[+dest.slice(3)]); document.getElementById('anclaM').scrollIntoView({behavior:'smooth'}); return; }
   if(dest==='early'){ if(EA.abierto){ vista='ea'; fMarca=''; fCol=''; cat=''; render(); } else if(EA.priv) abrirEA(); }
   else if(dest==='ofertas'||dest==='drops'){ vista=dest; fMarca=''; fCol=''; cat=''; render(); }
   else if(dest.startsWith('marca:')){ vista=''; cat=''; fCol=''; fMarca=dest.slice(6); render(); }
@@ -858,40 +858,52 @@ guardarBolsa(); guardarFavs();
 const t0=Date.now();
 function quitarIntro(){ const s=$('#splash'); setTimeout(()=>s.classList.add('out'),Math.max(0,1100-(Date.now()-t0))); }
 /* ---------- Early Access con contraseña: esos productos vienen cifrados en datos.json ---------- */
-const EA={priv:null,n:0,abierto:false,portada:'',marca:'',fecha:'',ids:new Set()};
+// Puede haber varios drops en Early Access, cada uno con su contraseña (por ejemplo YoungLA y Gymshark)
+const EA={grupos:[],priv:null,n:0,abierto:false,portada:'',marca:'',fecha:'',ids:new Set()};
+function syncEA(){ const G=EA.grupos; EA.priv=G.length?1:null; EA.abierto=G.length>0&&G.every(g=>g.abierto); EA.n=G.reduce((a,g)=>a+(g.n||0),0);
+  const g0=G[0]||{}; EA.portada=g0.portada||''; EA.marca=G.map(g=>g.marca).filter(Boolean).join(' y '); EA.fecha=G.map(g=>g.fecha).filter(Boolean).sort()[0]||''; }
 const deB64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 async function descifrar(pv,clave){
   const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(clave),'PBKDF2',false,['deriveKey']);
   const k=await crypto.subtle.deriveKey({name:'PBKDF2',salt:deB64(pv.sal),iterations:150000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
   return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:deB64(pv.iv)},k,deB64(pv.datos))));
 }
+// la contraseña abre el drop (o los drops) que le toca; las que ya pusiste se recuerdan
+let ultimoEA=null;
 async function entrarEA(clave,callado){
-  try{
-    const ps=(await descifrar(EA.priv,clave)).filter(p=>p&&p.id&&p.nombre);
-    const ids=new Set(P.map(p=>p.id)); P=P.concat(ps.filter(p=>!ids.has(p.id))); ps.forEach(p=>EA.ids.add(p.id));
-    EA.abierto=true; LS.set('claveEA',clave); pintarEA(); renderHero(); render(); return true;
-  }catch(e){ if(!callado) $('#eaErr').hidden=false; return false; }
+  let ok=false;
+  for(const g of EA.grupos){ if(g.abierto) continue;
+    try{ const ps=(await descifrar(g.priv,clave)).filter(p=>p&&p.id&&p.nombre);
+      const ids=new Set(P.map(p=>p.id)); P=P.concat(ps.filter(p=>!ids.has(p.id))); ps.forEach(p=>EA.ids.add(p.id)); g.abierto=true; ultimoEA=g; ok=true; }catch(e){} }
+  if(!ok){ if(!callado) $('#eaErr').hidden=false; return false; }
+  const cs=LS.get('clavesEA',[]); if(!cs.includes(clave)) LS.set('clavesEA',cs.concat(clave)); LS.set('claveEA',clave);
+  syncEA(); pintarEA(); renderHero(); render(); return true;
 }
+// enseña solo el drop que se abrió (si es de una sola marca)
+function verDrop(g){ vista='ea'; fCol=''; cat=''; fMarca=g&&g.marca&&!/ y |, /.test(g.marca)?g.marca:''; render(); }
 function pintarEA(){
   $('#mEarly').hidden=!EA.priv;
   $('#eaBox').innerHTML=!EA.priv||vista?'':EA.abierto
     ?'<button class="drop ea" data-ea="ver"><div><small>🔓 Early Access</small><b>Ya entraste · '+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Ver →</div></button>'
     :EA.portada?'':'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
 }
-function abrirEA(){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').href=wa('Hola FITWEARMX 👋 ¿Me compartes la contraseña del Early Access?'); abrir('ovEA'); setTimeout(()=>$('#eaClave').focus(),60); }
+function abrirEA(g){ $('#eaErr').hidden=true; $('#eaClave').value=''; $('#eaWa').href=wa('Hola FITWEARMX 👋 ¿Me compartes la contraseña del Early Access'+(g&&g.marca?' de '+g.marca:'')+'?'); abrir('ovEA'); setTimeout(()=>$('#eaClave').focus(),60); }
 $('#eaBox').addEventListener('click',e=>{ const b=e.target.closest('[data-ea]'); if(!b) return; e.stopPropagation(); if(b.dataset.ea==='abrir') abrirEA(); else { vista='ea'; fMarca=''; fCol=''; cat=''; render(); } });
-async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); vista='ea'; fMarca=''; fCol=''; cat=''; render(); toast('¡Bienvenido al Early Access!'); } }
+async function intentarEA(){ const c=$('#eaClave').value.trim(); if(!c) return; $('#eaEntrar').disabled=true; const ok=await entrarEA(c); $('#eaEntrar').disabled=false; if(ok){ cerrar('ovEA'); verDrop(ultimoEA); toast('¡Bienvenido al Early Access'+(ultimoEA&&ultimoEA.marca?' de '+ultimoEA.marca:'')+'!'); } }
 $('#eaEntrar').addEventListener('click',intentarEA);
 $('#hero').addEventListener('click',e=>{
   const hd=e.target.closest('[data-hd]'); if(hd){ e.stopPropagation(); const sl=$('#slides'); sl.scrollTo({left:+hd.dataset.hd*sl.clientWidth,behavior:'smooth'}); return; }
-  if(e.target.closest('[data-ea="abrir"]')){ e.stopPropagation(); abrirEA(); return; }
+  const ab=e.target.closest('[data-ea="abrir"]'); if(ab){ e.stopPropagation(); abrirEA(EA.grupos[+(ab.dataset.g||0)]); return; }
   const n=e.target.closest('[data-dest]'); if(n){ e.stopPropagation(); irDestino(n.dataset.dest,n.dataset.link); } });
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
 
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
   PORTADA=(d.portada||[]).filter(n=>n&&n.foto&&n.titulo); ORDEN_PORTADA=Array.isArray(d.portadaOrden)?d.portadaOrden:null;
-  if(d.privado){ EA.priv=d.privado; EA.n=d.privadoN||0; EA.portada=d.privadoPortada||''; EA.marca=d.privadoMarca||''; EA.fecha=d.privadoFecha||''; const c=LS.get('claveEA',''); if(c) await entrarEA(c,true); pintarEA(); }
+  EA.grupos=(Array.isArray(d.privados)&&d.privados.length?d.privados:d.privado?[{privado:d.privado,n:d.privadoN,portada:d.privadoPortada,marca:d.privadoMarca,fecha:d.privadoFecha}]:[])
+    .filter(g=>g&&g.privado).map(g=>({priv:g.privado,n:g.n||0,portada:g.portada||'',marca:g.marca||'',fecha:g.fecha||'',abierto:false}));
+  syncEA();
+  if(EA.grupos.length){ for(const c of [...new Set([LS.get('claveEA','')].concat(LS.get('clavesEA',[])))].filter(Boolean)) await entrarEA(c,true); pintarEA(); }
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
   leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
