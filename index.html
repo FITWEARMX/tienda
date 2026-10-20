@@ -48,6 +48,7 @@ img{display:block;max-width:100%}
 .sl{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:start;display:flex;align-items:flex-end;cursor:pointer}
 .sl>video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:1;background:#000}
 .sl.convideo>img{opacity:0}
+.sl video::-webkit-media-controls,.sl video::-webkit-media-controls-start-playback-button,.sl video::-webkit-media-controls-overlay-play-button{display:none!important;-webkit-appearance:none}
 .sl>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.82}
 .sl::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)}
 .sl .txt{position:relative;z-index:1;padding:24px 20px 40px;max-width:1200px;width:100%;margin:0 auto}
@@ -417,7 +418,7 @@ const esDeCol=p=>!!fCol&&coleccionDe(p).toLowerCase()===fCol.toLowerCase();
 // Hombre o mujer: lo que diga el Catálogo; si no dice, por el nombre de la prenda (leggings, bra, crop… y la línea "Adapt" son de mujer)
 const DE_MUJER=/\b(women'?s?|woman|womens|her|hers|she|ladies|leggings?|sports?\s*bras?|bras?|bralette|crop|halter|bikers|biker shorts?|skirt|skort|dress|bodysuit|unitard|cami|scrunch|flare|adapt|vital|butterfly)\b|zip front top|off the shoulder|^\s*w\d+\s*-/i;
 function lineaDe(p){ if(p.linea==='hombre'||p.linea==='mujer'||p.linea==='unisex') return p.linea; return DE_MUJER.test(p.nombre||'')||/\b(her|hers|women'?s?|she)\b/i.test(p.coleccion||'')?'mujer':'hombre'; }
-const enLinea=p=>!linea||lineaDe(p)===linea||lineaDe(p)==='unisex';
+const enLinea=p=>!linea||lineaDe(p)===linea||(linea==='hombre'&&lineaDe(p)==='unisex'); // en Mujer sale solo lo de mujer
 function infoMarca(n){ return MARCAS.find(o=>o.n===n)||{k:slug(n),n}; }
 function logoHTML(n,cls){ const o=infoMarca(n); return '<div class="mk'+(o.alta?' alta':'')+(cls||'')+'">'+(o.logo?'<img src="'+esc(o.logo)+'" alt="'+esc(o.n)+'">':'<span>'+esc(o.n)+'</span>')+'</div>'; }
 // orden de las marcas: el de tu franja; las que no estén en la lista, al final
@@ -583,13 +584,24 @@ function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), 
   if(ok) vista=''; return ok; }
 /* Portada que se mueve: Early Access (si está cerrado), tus noticias y tu producto destacado. Cambia sola cada 5 segundos. */
 let PORTADA=[], ORDEN_PORTADA=null, heroTimer=null, heroI=0;
+// videos pesados de las marcas → copia ligera guardada en tu tienda (carga 2 a 4 veces más rápido)
+const LIGEROS={
+  'https://assets.gymshark.com/wl6q2in9o7k3/5QYpBTO7pCRusJYpsBpY6o/1dc08bbece8b38ebdd6a66671e5c8109/Gymshark_Sam_Sulek_-_Hero_15s_-_2x3_-h264.mp4':'videos/sam-sulek-v.mp4',
+  'https://assets.gymshark.com/wl6q2in9o7k3/4qJjzyBBtzD8LjoXU4cfX1/a43ef47fde801a308f5786c8c86eb9b1/Gymshark_Sam_Sulek_-_Hero_15s_-_8x3_-_h264.mp4':'videos/sam-sulek-h.mp4'
+};
+const ligero=u=>LIGEROS[u]||u;
+// el video de una lámina se baja solo cuando esa lámina se ve; los demás se pausan
+function videoActivo(){ const sl=$('#slides'); if(!sl) return;
+  [...sl.children].forEach((el,i)=>{ const v=el.querySelector('video'); if(!v) return;
+    if(i===heroI){ if(!v.getAttribute('src')&&v.dataset.src){ v.src=v.dataset.src; v.load(); } const pr=v.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
+    else if(!v.paused) v.pause(); }); }
 // Cada lámina de la portada; el orden lo eliges en tu Catálogo (📰 Portada)
 function laminas(){
   const L={};
   // video de la noticia: horizontal en computadora, vertical en celular; la foto queda debajo por si no carga
   const quieto=matchMedia('(prefers-reduced-motion: reduce)').matches||(navigator.connection&&navigator.connection.saveData), cel=matchMedia('(max-width:700px)').matches;
-  const vidDe=n=>n&&n.video&&!quieto?(cel?(n.video.v||n.video.h):(n.video.h||n.video.v)):'';
-  const fondo=(foto,vs)=>'<img src="'+esc(foto)+'" alt="">'+(vs?'<video src="'+esc(vs)+'" poster="'+esc(foto)+'" autoplay muted loop playsinline preload="metadata" onplaying="this.parentNode.classList.add(\'convideo\')" onerror="this.parentNode.classList.remove(\'convideo\');this.remove()"></video>':'');
+  const vidDe=n=>n&&n.video&&!quieto?ligero(cel?(n.video.v||n.video.h):(n.video.h||n.video.v)):'';
+  const fondo=(foto,vs)=>'<img src="'+esc(foto)+'" alt="">'+(vs?'<video data-src="'+esc(vs)+'" poster="'+esc(foto)+'" muted loop playsinline preload="none" onplaying="this.parentNode.classList.add(\'convideo\')" onerror="this.parentNode.classList.remove(\'convideo\');this.remove()"></video>':'');
   const norm=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'');
   // ¿esta noticia es del mismo drop que este Early Access? (su título o su destino trae la marca del drop)
   const mismoDrop=(n,g)=>{ const m=norm(g.marca); return !!m&&(norm(n.titulo).includes(m)||norm(n.destino).includes(m)); };
@@ -627,8 +639,8 @@ function renderHero(){
   if(!ls.length){ $('#hero').hidden=true; return; }
   $('#hero').hidden=false; $('#hero').classList.remove('ea');
   $('#hero').innerHTML='<div class="slides" id="slides">'+ls.join('')+'</div>'+(ls.length>1?'<div class="hdots">'+ls.map((_,i)=>'<button data-hd="'+i+'" aria-label="Portada '+(i+1)+'"'+(i?'':' class="on"')+'></button>').join('')+'</div>':'');
-  heroI=0; const sl=$('#slides');
-  sl.addEventListener('scroll',()=>{ const i=Math.round(sl.scrollLeft/sl.clientWidth); if(i!==heroI){ heroI=i; document.querySelectorAll('.hdots button').forEach((b,j)=>b.classList.toggle('on',j===i)); } },{passive:true});
+  heroI=0; const sl=$('#slides'); setTimeout(videoActivo,300);
+  sl.addEventListener('scroll',()=>{ const i=Math.round(sl.scrollLeft/sl.clientWidth); if(i!==heroI){ heroI=i; document.querySelectorAll('.hdots button').forEach((b,j)=>b.classList.toggle('on',j===i)); videoActivo(); } },{passive:true});
   let desde=Date.now(); sl.addEventListener('scroll',()=>{ desde=Date.now(); },{passive:true});
   if(ls.length>1){ const sig=()=>{ if(document.hidden||!$('#pv').hidden) return;
     const act=sl.children[heroI]; if(act&&act.querySelector('video')&&Date.now()-desde<14000) return; /* deja ver el video */ const i=(heroI+1)%ls.length; sl.scrollTo({left:i*sl.clientWidth,behavior:'smooth'}); };
@@ -915,7 +927,8 @@ $('#hero').addEventListener('click',e=>{
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
 
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
-  P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre);
+  // los colores sin fotos no se enseñan (para que no salga un cuadro en blanco); si ningún color tiene fotos, el producto tampoco
+  P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre).map(p=>Array.isArray(p.colores)?Object.assign({},p,{colores:p.colores.filter(c=>c&&c.fotos&&c.fotos.length)}):p).filter(p=>!Array.isArray(p.colores)||p.colores.length);
   PORTADA=(d.portada||[]).filter(n=>n&&n.foto&&n.titulo); ORDEN_PORTADA=Array.isArray(d.portadaOrden)?d.portadaOrden:null;
   EA.grupos=(Array.isArray(d.privados)&&d.privados.length?d.privados:d.privado?[{privado:d.privado,n:d.privadoN,portada:d.privadoPortada,marca:d.privadoMarca,fecha:d.privadoFecha}]:[])
     .filter(g=>g&&g.privado).map(g=>({priv:g.privado,n:g.n||0,portada:g.portada||'',marca:g.marca||'',fecha:g.fecha||'',abierto:false}));
