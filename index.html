@@ -801,7 +801,7 @@ function pintarBolsa(){
     '<div class="tot"><span>Envío</span><span>'+(entrega==='mty'?money(t.env):'Por cotizar')+'</span></div>'+
     '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div>'+
     (t.aparta?'<div class="apbox"><div class="tot"><span>'+(t.hoy>t.ant?'Pagas hoy (anticipo + entrega inmediata)':'Ordena con')+'</span><b>'+money(t.hoy)+'</b></div>'+
-      '<div class="tot"><span>Resto a liquidar en 3 semanas (antes del '+fechaLimite()+')</span><span>'+money(t.resto)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
+      '<div class="tot"><span>Resto a liquidar en 3 semanas (antes del '+fechaLimite()+')</span><span>'+money(t.resto+t.env)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+'</div>';
   $('#bolsaFoot').innerHTML='<a class="btn wa full" id="btnPedir" target="_blank" rel="noopener">Pedir por WhatsApp</a><p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
   actualizarPedido();
 }
@@ -830,7 +830,7 @@ function pedidoCorto(txt){
   const i=s.slice(7).map(x=>{ const [id,ci,ta,pr]=x.split('-'), p=P.find(q=>q.id===id), c=p&&(p.colores||[])[+ci||0];
     if(!p) return ['Prenda que ya no está en la tienda','','',tallaDe(ta),+pr||0,'',''];
     return [p.nombre,marcaDe(p),(c&&c.nombre)||'',tallaDe(ta),+pr||0,(c&&c.fotos&&c.fotos[0])||foto1(p),p.estadoTxt||{early:'Drop',preventa:'Preventa',camino:'En camino'}[p.estado]||'']; });
-  return {v:1,c:cod.replace(/^([A-Z]+)(\d+)$/,'$1-$2'),n:nom.replace(/-/g,' '),t:tel,f,ent,pag,env:ent==='mty'?TIENDA.envioMty:0,ant:+ant||0,res:+res||0,
+  return {v:1,c:cod.replace(/^([A-Z]+)(\d+)$/,'$1-$2'),n:nom.replace(/-/g,' '),t:tel,f,ent,pag,env:ent==='mty'?TIENDA.envioMty:0,ant:+ant||0,res:(+res||0)+(+ant&&ent==='mty'?TIENDA.envioMty:0), // el envío se paga con el resto (el link guarda el resto sin envío)
     lim:+ant?lim.getDate()+' de '+['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][lim.getMonth()]:'',i};
 }
 function mensaje(){
