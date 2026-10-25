@@ -123,6 +123,10 @@ img{display:block;max-width:100%}
 @media (min-width:760px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (min-width:1050px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .card{all:unset;cursor:pointer;display:block;min-width:0}
+.otros{margin-top:26px}
+.otros-row{display:grid;grid-auto-flow:column;grid-auto-columns:42%;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+.otros-row .card{scroll-snap-align:start}
+@media (min-width:760px){.otros-row{grid-auto-columns:30%}}
 .card:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 .ph{position:relative;aspect-ratio:4/5;background:var(--soft);border-radius:6px;overflow:hidden}
 .ph img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease}
@@ -323,6 +327,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
       <p class="lbl" id="pvTallaLbl">Talla</p><div class="sizes" id="pvSizes"></div>
       <p class="err" id="pvErr" hidden>Elige tu talla.</p>
       <p class="desc" id="pvDesc"></p>
+      <div class="otros" id="pvOtros" hidden><p class="lbl">Otros diseños</p><div class="otros-row" id="pvOtrosRow"></div></div>
     </div>
   </div>
 </div>
@@ -716,6 +721,19 @@ function abrirProducto(id,colorK){
 function cerrarProducto(){ $('#pv').hidden=true; $('#buy').hidden=true; cur=null; if(!abierto.length) document.body.style.overflow=''; }
 $('#pvBack').addEventListener('click',()=>{ if(history.state&&history.state.p) history.back(); else cerrarProducto(); });
 window.addEventListener('popstate',()=>{ const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&P.some(p=>p.id===id)) abrirProducto(id); else cerrarProducto(); });
+/* Otros diseños: prendas de la misma marca con el mismo corte (terminan igual: "Premium Oversized Tee", "Hoodies"…) */
+function palabrasCorte(n){ return String(n||'').toLowerCase().replace(/["“”'’]/g,'').replace(/\s+in\s+(\S+\s*){1,3}$/,'').replace(/[^a-z0-9áéíóúñ]+/g,' ').trim().split(' ').filter(Boolean); }
+function otrosDisenos(p){
+  const w=palabrasCorte(p.nombre), m=marcaDe(p);
+  const misma=P.filter(x=>x.id!==p.id&&marcaDe(x)===m&&!todoAgotado(x));
+  for(const n of [3,2,1]){
+    if(w.length<=n) continue;
+    const fin=w.slice(-n).join(' ');
+    const l=misma.filter(x=>{ const v=palabrasCorte(x.nombre); return v.length>n&&v.slice(-n).join(' ')===fin; });
+    if(l.length) return l.slice(0,12);
+  }
+  return [];
+}
 function pintarProducto(){
   const p=cur, c=curColor||{fotos:[],tallas:{}}, pc=precioC(p,c), pb=Math.max(baseC(p,c),+c.precioAntes||0), of=pb>pc;
   const fs=(c.fotos&&c.fotos.length?c.fotos:[foto1(p)]).filter(Boolean);
@@ -743,6 +761,7 @@ function pintarProducto(){
   $('#pvSizes').innerHTML=un?'':todas.map(t=>'<button class="size'+(curTalla===t?' on':'')+'" data-talla="'+esc(t)+'"'+(ts.includes(t)&&hay(p,c,t)?'':' disabled')+'>'+esc(t)+'</button>').join('')||'<p class="note">Pregúntanos por tallas.</p>';
   if(c.agotado){ $('#pvAparta').hidden=true; $('#pvNote').hidden=true; }
   $('#pvErr').hidden=true; $('#pvDesc').textContent=[coleccionDe(p)?'Colección: '+coleccionDe(p):'',p.descripcion||''].filter(Boolean).join('\n');
+  const ot=otrosDisenos(p); $('#pvOtros').hidden=!ot.length; $('#pvOtrosRow').innerHTML=ot.map(cardHTML).join('');
   $('#pvFav').classList.toggle('on',favs.has(p.id));
   $('#pvFav').querySelector('svg').style.fill=favs.has(p.id)?'#0b0b0c':'none';
   const sinStock=p.estado==='disponible'&&(un?!hayUnica(p,c):!tallasConStock(p).size);
