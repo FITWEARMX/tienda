@@ -281,7 +281,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
     <button data-go="">Todo <small id="mTodo"></small></button>
     <button data-go="hombre">Hombre</button>
     <button data-go="mujer">Mujer</button>
-    <button data-go="early" id="mEarly" hidden>🔒 Early Access</button>
+    <button data-go="early" id="mEarly" hidden>🔓 Early Access</button>
     <button data-go="ofertas">Ofertas y últimas tallas <small id="mOfertas"></small></button>
     <button data-go="drops">Drops y preventas</button>
     <button data-go="favs">Favoritos <small id="mFavs"></small></button>
@@ -477,7 +477,7 @@ function filtrar(){
   let r=P.slice();
   if(vista==='favs') r=r.filter(p=>favs.has(p.id));
   else if(vista==='drops') r=r.filter(p=>p.estado==='early'||p.estado==='preventa'||p.estado==='camino');
-  else if(vista==='ea') r=r.filter(p=>EA.ids.has(p.id));
+  else if(vista==='ea') r=r.filter(p=>EA.ids.has(p.id)||(!EA.grupos.length&&p.estado==='early'));
   if(linea) r=r.filter(enLinea);
   if(cat) r=r.filter(p=>catDe(p)===cat);
   if(fMarca) r=r.filter(p=>marcaDe(p)===fMarca);
@@ -657,7 +657,7 @@ function irDestino(dest,link){
   if(!dest) return;
   if(dest==='url'){ if(link) window.open(link,'_blank','noopener'); return; }
   if(dest.startsWith('ea:')){ verDrop(EA.grupos[+dest.slice(3)]); document.getElementById('anclaM').scrollIntoView({behavior:'smooth'}); return; }
-  if(dest==='early'){ if(EA.abierto){ vista='ea'; fMarca=''; fCol=''; cat=''; render(); } else if(EA.priv) abrirEA(); }
+  if(dest==='early'){ if(EA.abierto||!EA.priv){ vista='ea'; fMarca=''; fCol=''; cat=''; render(); } else abrirEA(); }
   else if(dest==='ofertas'||dest==='drops'){ vista=dest; fMarca=''; fCol=''; cat=''; render(); }
   else if(dest.startsWith('marca:')){ vista=''; cat=''; fCol=''; fMarca=dest.slice(6); render(); }
   else if(dest.startsWith('col:')){ const [m,c]=dest.slice(4).split('|'); vista=''; cat=''; fMarca=m; fCol=c||'';
@@ -685,7 +685,7 @@ $('#btnMenu').addEventListener('click',()=>abrir('ovMenu'));
 $('#brand').addEventListener('click',e=>{ e.preventDefault(); vista=''; cat=''; fMarca=''; fCol=''; render(); window.scrollTo(0,0); });
 $('#ovMenu').addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(!b) return; const g=b.dataset.go; cerrar('ovMenu');
   if(g==='pago'){ pintarPago(); abrir('ovPago'); return; }
-  if(g==='early'){ if(!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; fCol=''; cat=''; }
+  if(g==='early'){ if(EA.priv&&!EA.abierto){ abrirEA(); return; } vista='ea'; fMarca=''; fCol=''; cat=''; }
   else if(g==='favs'||g==='drops'||g==='ofertas'){ vista=g; } else { vista=''; linea=g; LS.set('linea',linea); }
   cat=''; render(); document.getElementById('anclaM').scrollIntoView({behavior:'smooth'}); });
 $('#btnBuscar').addEventListener('click',()=>{ abrir('ovBuscar'); $('#q').value=''; buscar(); setTimeout(()=>$('#q').focus(),60); });
@@ -930,7 +930,7 @@ async function entrarEA(clave,callado){
 // enseña solo el drop que se abrió (si es de una sola marca)
 function verDrop(g){ vista='ea'; fCol=''; cat=''; fMarca=g&&g.marca&&!/ y |, /.test(g.marca)?g.marca:''; render(); }
 function pintarEA(){
-  $('#mEarly').hidden=!EA.priv;
+  $('#mEarly').hidden=!(EA.priv||P.some(p=>p.estado==='early'));
   $('#eaBox').innerHTML=!EA.priv||vista?'':EA.abierto
     ?'<button class="drop ea" data-ea="ver"><div><small>🔓 Early Access</small><b>Ya entraste · '+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Ver →</div></button>'
     :EA.portada?'':'<button class="drop ea" data-ea="abrir"><div><small>🔒 Early Access</small><b>'+EA.n+(EA.n===1?' producto':' productos')+' antes que nadie</b></div><div class="cd">Entrar</div></button>';
@@ -952,7 +952,8 @@ fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{prod
   EA.grupos=(Array.isArray(d.privados)&&d.privados.length?d.privados:d.privado?[{privado:d.privado,n:d.privadoN,portada:d.privadoPortada,marca:d.privadoMarca,fecha:d.privadoFecha}]:[])
     .filter(g=>g&&g.privado).map(g=>({priv:g.privado,n:g.n||0,portada:g.portada||'',marca:g.marca||'',fecha:g.fecha||'',abierto:false}));
   syncEA();
-  if(EA.grupos.length){ for(const c of [...new Set([LS.get('claveEA','')].concat(LS.get('clavesEA',[])))].filter(Boolean)) await entrarEA(c,true); pintarEA(); }
+  if(EA.grupos.length){ for(const c of [...new Set([LS.get('claveEA','')].concat(LS.get('clavesEA',[])))].filter(Boolean)) await entrarEA(c,true); }
+  pintarEA();
   const ids=new Set(P.map(p=>p.id)); favs=new Set([...favs].filter(id=>ids.has(id))); guardarFavs();
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
   leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
