@@ -581,7 +581,7 @@ function ofertaHTML(p,c){
 }
 function cardHTML(p){
   const c0=(p.colores||[])[0], reb=+(c0&&c0.precioAntes)||0;
-  const bfc=vista==='bf'&&bfDe(p)[0], t=bfc?['bf','Black Friday -'+Math.round((1-precioC(p,bfc)/bfc.precioAntes)*100)+'%']:etiqueta(p), f=foto1(p), of=(p.oferta&&p.precioBase>p.precio)||reb>p.precio, antes=Math.max(p.precioBase||0,reb);
+  const bfc=vista==='bf'&&bfDe(p)[0], t=bfc?['bf','Black Friday']:etiqueta(p), f=foto1(p), of=(p.oferta&&p.precioBase>p.precio)||reb>p.precio, antes=Math.max(p.precioBase||0,reb);
   const nc=(p.colores||[]).filter(c=>c.nombre).length;
   const cs=(p.colores||[]).filter(c=>!c.agotado&&c.fotos&&c.fotos[0]), MAXS=5;
   const sw=cs.length>1?'<div class="sw">'+cs.slice(0,MAXS).map((c,i)=>'<span class="sw-i'+(i===0?' on':'')+'" data-swk="'+esc(c.k)+'" data-src="'+esc(c.fotos[0])+'" title="'+esc(c.nombre)+'"><img src="'+esc(c.fotos[0])+'" alt="'+esc(c.nombre)+'" loading="lazy"></span>').join('')+(cs.length>MAXS?'<span class="sw-m">+'+(cs.length-MAXS)+'</span>':'')+'</div>':'';
