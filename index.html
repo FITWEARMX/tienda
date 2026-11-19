@@ -411,10 +411,10 @@ const TIENDA={
     {banco:'Mercado Pago',clabe:'722969020418976141'}
   ]
 };
-/* Black Friday (18-nov, decisión del dueño): envío GRATIS a todo México hasta el 30-nov (hora MTY). Se apaga solo el 1-dic. */
+/* Black Friday (decisión del dueño): envío GRATIS en Monterrey; a otro estado GRATIS solo comprando 3 prendas o más (19-nov). Hasta el 30-nov (hora MTY); se apaga solo el 1-dic. */
 const ENVIO_GRATIS=Date.now()<Date.parse('2026-12-01T06:00:00Z');
 if(ENVIO_GRATIS) TIENDA.envioMty=0;
-try{ if(ENVIO_GRATIS) document.getElementById('ann').textContent='🖤 Black Friday · Envío GRATIS a todo México · Al mundo se cotiza'; }catch(e){}
+try{ if(ENVIO_GRATIS) document.getElementById('ann').textContent='🖤 Envío GRATIS en Monterrey · Al mundo se cotiza'; }catch(e){}
 const $=(s,el=document)=>el.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const moneyMX=v=>'$'+Math.round(+v||0).toLocaleString('en-US');
@@ -444,7 +444,7 @@ const fuera=()=>REG!=='MX';
 const sufMon=()=>MON==='MXN'?' MXN':'';
 function cargarTC(){ const c=LS.get('tc',null); if(c&&c.r&&Date.now()-c.t<12*3600e3){ TC=c.r[MON]||TC_BASE[MON]; return Promise.resolve(); }
   return fetch('https://open.er-api.com/v6/latest/MXN').then(r=>r.json()).then(j=>{ if(j&&j.rates){ LS.set('tc',{t:Date.now(),r:j.rates}); TC=j.rates[MON]||TC_BASE[MON]; } }).catch(()=>{}); }
-function annTexto(){ return fuera()?'Envíos a todo el mundo · Precios aprox. en '+MON:(ENVIO_GRATIS?(innerWidth<600?'🖤 Envío GRATIS a todo México · Al mundo se cotiza':'🖤 Black Friday · Envío GRATIS a todo México · Al mundo se cotiza'):'Entregas en Monterrey · Envíos a todo México · Al mundo se cotiza'); }
+function annTexto(){ return fuera()?'Envíos a todo el mundo · Precios aprox. en '+MON:(ENVIO_GRATIS?'🖤 Envío GRATIS en Monterrey · Al mundo se cotiza':'Entregas en Monterrey · Envíos a todo México · Al mundo se cotiza'); }
 try{ const sel=document.getElementById('selReg'); sel.innerHTML=Object.keys(REGIONES).map(k=>'<option value="'+k+'"'+(k===REG?' selected':'')+'>'+REGIONES[k][0]+' · '+REGIONES[k][1]+'</option>').join('');
   document.getElementById('ann').textContent=annTexto(); document.getElementById('regFlag').textContent=REGIONES[REG][0].split(' ')[0]; }catch(e){}
 
@@ -453,7 +453,7 @@ const wa=t=>'https://wa.me/'+TIENDA.whatsapp+'?text='+encodeURIComponent(t);
 const BF_FIN=Date.parse('2026-12-01T06:00:00Z');
 function cuentaBF(){ const ms=BF_FIN-Date.now(); if(ms<=0) return 'ya terminó'; const D=Math.floor(ms/864e5),H=Math.floor(ms%864e5/36e5),M=Math.floor(ms%36e5/6e4); return (D?D+'d ':'')+String(H).padStart(2,'0')+'h '+String(M).padStart(2,'0')+'m'; }
 setInterval(()=>document.querySelectorAll('[data-cdbf]').forEach(el=>{ el.textContent=cuentaBF(); }),30000);
-document.addEventListener('DOMContentLoaded',()=>{ const w=document.getElementById('waf'); if(w) w.href=wa('Hola FITWEARMX 👋 tengo una duda'); const pe=document.getElementById('pieEnvios'); if(pe&&ENVIO_GRATIS) pe.insertAdjacentHTML('beforeend','<p><b>🖤 Black Friday: envío GRATIS a todo México hasta el 30 de noviembre.</b></p>'); });
+document.addEventListener('DOMContentLoaded',()=>{ const w=document.getElementById('waf'); if(w) w.href=wa('Hola FITWEARMX 👋 tengo una duda'); const pe=document.getElementById('pieEnvios'); if(pe&&ENVIO_GRATIS) pe.insertAdjacentHTML('beforeend','<p><b>🖤 Black Friday: envío GRATIS en Monterrey. A todo México, envío GRATIS comprando 3 prendas o más. Hasta el 30 de noviembre.</b></p>'); });
 // el botón de WhatsApp se esconde cuando hay una ventana abierta (producto, bolsa, menú)
 try{ new MutationObserver(()=>document.body.classList.toggle('ovon',!!document.querySelector('.ov:not([hidden])'))).observe(document.body,{subtree:true,attributes:true,attributeFilter:['class','open','hidden']}); }catch(e){}
 const ig='https://www.instagram.com/'+TIENDA.instagram+'/';
@@ -885,6 +885,8 @@ function pintarPago(){ $('#pagoBody').innerHTML='<p class="lbl">Transferencia o 
 document.addEventListener('click',async e=>{ const b=e.target.closest('[data-copy]'); if(!b) return;
   try{ await navigator.clipboard.writeText(b.dataset.copy); toast('Copiado'); }catch(err){ toast(b.dataset.copy); } });
 function itemAparta(x){ return x.aparta!=null?x.aparta:seAparta(P.find(p=>p.id===x.id)); }
+// envío gratis a otro estado: solo en Black Friday y con 3 prendas o más en la bolsa
+function gratisNac(){ return ENVIO_GRATIS&&bolsa.length>=3; }
 function totales(){ const sub=bolsa.reduce((a,x)=>a+(+x.precio||0),0); const env=entrega==='mty'?TIENDA.envioMty:0;
   const ap=bolsa.filter(itemAparta), ant=ap.reduce((a,x)=>a+anticipo(x.precio),0), resto=ap.reduce((a,x)=>a+(+x.precio||0),0)-ant;
   return {sub,env,tot:sub+env,aparta:ap.length>0,ant,resto,hoy:sub-resto}; }
@@ -895,7 +897,7 @@ function pintarBolsa(){
       '<div><b>'+esc(x.nombre)+'</b><small>'+esc([x.marca,x.color,x.talla?'Talla '+x.talla:'',x.estado].filter(Boolean).join(' · '))+'</small><p class="p">'+money(x.precio)+'</p></div>'+
       '<button class="x" data-quitar="'+i+'">Quitar</button></div>').join('')+
     '<p class="lbl" style="margin-top:20px">Entrega</p>'+
-    (fuera()?[['intl','Envío internacional','Por paquetería · Te cotizamos el envío por WhatsApp']]:[['mty','Monterrey, con chofer',(ENVIO_GRATIS?'Envío GRATIS por Black Friday':'$'+TIENDA.envioMty)+' · Pagas al recibir o antes'],['nacional','Envío a otra ciudad',ENVIO_GRATIS?'Por paquetería · Envío GRATIS por Black Friday':'Por paquetería · Te cotizamos el envío']]).map(o=>'<label class="opt'+(entrega===o[0]?' on':'')+'"><input type="radio" name="ent" value="'+o[0]+'"'+(entrega===o[0]?' checked':'')+'><span><b>'+o[1]+'</b><small>'+o[2]+'</small></span></label>').join('')+
+    (fuera()?[['intl','Envío internacional','Por paquetería · Te cotizamos el envío por WhatsApp']]:[['mty','Monterrey, con chofer',(ENVIO_GRATIS?'Envío GRATIS por Black Friday':'$'+TIENDA.envioMty)+' · Pagas al recibir o antes'],['nacional','Envío a otra ciudad',gratisNac()?'Por paquetería · Envío GRATIS por Black Friday (3 prendas o más)':(ENVIO_GRATIS?'Por paquetería · Te cotizamos el envío · Llévate 3 prendas o más y es GRATIS':'Por paquetería · Te cotizamos el envío')]]).map(o=>'<label class="opt'+(entrega===o[0]?' on':'')+'"><input type="radio" name="ent" value="'+o[0]+'"'+(entrega===o[0]?' checked':'')+'><span><b>'+o[1]+'</b><small>'+o[2]+'</small></span></label>').join('')+
     '<p class="lbl">Forma de pago</p>'+
     (fuera()?[['wa','Por WhatsApp','Te decimos cómo pagar desde tu país']]:[['transferencia','Transferencia'],['oxxo','Depósito en OXXO']].concat(entrega==='mty'?[['efectivo','Efectivo al recibir']]:[])).map(o=>'<label class="opt'+(pago===o[0]?' on':'')+'"><input type="radio" name="pag" value="'+o[0]+'"'+(pago===o[0]?' checked':'')+'><span><b>'+o[1]+'</b>'+(o[2]?'<small>'+o[2]+'</small>':'')+'</span></label>').join('')+
     (pago==='transferencia'||pago==='oxxo'?'<details style="margin:4px 0 10px"><summary style="cursor:pointer;font-weight:700;font-size:14px">Ver datos para pagar</summary><div style="margin-top:10px">'+pagoHTML()+'</div></details>':'')+
@@ -904,7 +906,7 @@ function pintarBolsa(){
     '<p id="bErr" style="color:var(--red);font-size:13px;font-weight:600;margin:8px 0 0" hidden></p>'+
     '<div style="margin-top:14px"><div class="tot"><span>Productos ('+bolsa.length+')</span><span>'+money(t.sub)+'</span></div>'+
     '<div class="tot"><span>Envío</span><span>'+(entrega==='mty'?money(t.env):'Por cotizar')+'</span></div>'+
-    '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'?'':' + envío')+'</span></div>'+
+    '<div class="tot big"><span>Total</span><span>'+money(t.tot)+(entrega==='mty'||(entrega==='nacional'&&gratisNac())?'':' + envío')+'</span></div>'+
     (t.aparta?'<div class="apbox"><div class="tot"><span>'+(t.hoy>t.ant?'Pagas hoy (anticipo + entrega inmediata)':'Ordena con')+'</span><b>'+money(t.hoy)+'</b></div>'+
       '<div class="tot"><span>Resto a liquidar en 3 semanas (antes del '+fechaLimite()+')</span><span>'+money(t.resto+t.env)+'</span></div><small>El anticipo no es reembolsable.</small></div>':'')+(fuera()?'<p class="note" style="margin-top:10px">Precios aproximados en '+MON+'. Se cobra en pesos mexicanos (total '+moneyMX(t.tot)+' MXN + envío).</p>':'')+'</div>';
   $('#bolsaFoot').innerHTML='<a class="btn wa full" id="btnPedir" target="_blank" rel="noopener">Pedir por WhatsApp</a><p class="note" style="text-align:center">Te confirmamos disponibilidad por WhatsApp antes de pagar.</p>';
@@ -941,7 +943,7 @@ function pedidoCorto(txt){
 function mensaje(){
   const t=totales(), n=nombre.trim();
   return 'Hola FITWEARMX'+(n?', soy '+n+'.':'.')+' Quiero hacer el pedido '+codigo()+': '+(bolsa.length===1?'1 prenda':bolsa.length+' prendas')+
-    ' · Total '+moneyMX(t.tot)+' MXN'+(entrega==='mty'?'':' + envío')+(t.aparta?' · Ordeno con '+moneyMX(t.hoy)+' MXN':'')+'.'+
+    ' · Total '+moneyMX(t.tot)+' MXN'+(entrega==='mty'?'':(entrega==='nacional'&&gratisNac()?' · Envío GRATIS (Black Friday, 3+ prendas)':' + envío'))+(t.aparta?' · Ordeno con '+moneyMX(t.hoy)+' MXN':'')+'.'+
     '\nEntrega: '+({mty:'Monterrey con chofer',nacional:'Envío a otra ciudad',intl:'Envío internacional a '+REGIONES[REG][0].replace(/^\S+\s/,'')+' (cotizar envío)'}[entrega]||'')+' · Pago: '+{transferencia:'Transferencia',oxxo:'Depósito en OXXO',efectivo:'Efectivo al recibir',wa:'Por WhatsApp (desde otro país)'}[pago]+
     '\n\nMi pedido: '+linkPedido();
 }
