@@ -34,6 +34,12 @@ img{display:block;max-width:100%}
 .ann{background:var(--ink);color:#fff;text-align:center;font-size:11px;letter-spacing:.1em;padding:8px 40px;text-transform:uppercase;position:relative}
 @media (max-width:600px){.ann{font-size:9.5px;letter-spacing:.03em;padding:8px 34px 8px 10px}}
 .reg{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:17px;line-height:1;cursor:pointer}
+/* 19-nov: la barra de arriba camina (letras en movimiento) */
+.ann{overflow:hidden;white-space:nowrap}
+#ann{display:inline-block;padding-left:100%;animation:annCamina 16s linear infinite;will-change:transform}
+@keyframes annCamina{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+.reg{background:var(--ink);padding:4px 0 4px 8px;box-shadow:-10px 0 10px var(--ink)}
+@media (prefers-reduced-motion:reduce){#ann{animation:none;padding-left:0}}
 #selReg{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px}
 #selReg option{color:#000}
 .hd{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
@@ -414,7 +420,7 @@ const TIENDA={
 /* Black Friday (decisión del dueño): envío GRATIS en Monterrey; a otro estado GRATIS solo comprando 3 prendas o más (19-nov). Hasta el 30-nov (hora MTY); se apaga solo el 1-dic. */
 const ENVIO_GRATIS=Date.now()<Date.parse('2026-12-01T06:00:00Z');
 if(ENVIO_GRATIS) TIENDA.envioMty=0;
-try{ if(ENVIO_GRATIS) document.getElementById('ann').textContent='🖤 Envío GRATIS en Monterrey · Al mundo se cotiza'; }catch(e){}
+try{ if(ENVIO_GRATIS) document.getElementById('ann').textContent='🖤 Envío GRATIS en Monterrey · Envío GRATIS a todo México a partir de 3 piezas · Al mundo se cotiza'; }catch(e){}
 const $=(s,el=document)=>el.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const moneyMX=v=>'$'+Math.round(+v||0).toLocaleString('en-US');
@@ -444,7 +450,7 @@ const fuera=()=>REG!=='MX';
 const sufMon=()=>MON==='MXN'?' MXN':'';
 function cargarTC(){ const c=LS.get('tc',null); if(c&&c.r&&Date.now()-c.t<12*3600e3){ TC=c.r[MON]||TC_BASE[MON]; return Promise.resolve(); }
   return fetch('https://open.er-api.com/v6/latest/MXN').then(r=>r.json()).then(j=>{ if(j&&j.rates){ LS.set('tc',{t:Date.now(),r:j.rates}); TC=j.rates[MON]||TC_BASE[MON]; } }).catch(()=>{}); }
-function annTexto(){ return fuera()?'Envíos a todo el mundo · Precios aprox. en '+MON:(ENVIO_GRATIS?'🖤 Envío GRATIS en Monterrey · Al mundo se cotiza':'Entregas en Monterrey · Envíos a todo México · Al mundo se cotiza'); }
+function annTexto(){ return fuera()?'Envíos a todo el mundo · Precios aprox. en '+MON:(ENVIO_GRATIS?'🖤 Envío GRATIS en Monterrey · Envío GRATIS a todo México a partir de 3 piezas · Al mundo se cotiza':'Entregas en Monterrey · Envíos a todo México · Al mundo se cotiza'); }
 try{ const sel=document.getElementById('selReg'); sel.innerHTML=Object.keys(REGIONES).map(k=>'<option value="'+k+'"'+(k===REG?' selected':'')+'>'+REGIONES[k][0]+' · '+REGIONES[k][1]+'</option>').join('');
   document.getElementById('ann').textContent=annTexto(); document.getElementById('regFlag').textContent=REGIONES[REG][0].split(' ')[0]; }catch(e){}
 
