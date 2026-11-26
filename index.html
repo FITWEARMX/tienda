@@ -1055,6 +1055,7 @@ $('#hero').addEventListener('click',e=>{
   const n=e.target.closest('[data-dest]'); if(n){ e.stopPropagation(); irDestino(n.dataset.dest,n.dataset.link); } });
 $('#eaClave').addEventListener('keydown',e=>{ if(e.key==='Enter') intentarEA(); });
 
+const hashInicial=location.hash; // se guarda antes de que los filtros reescriban el link
 fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{productos:[]}).catch(()=>({productos:[]})).then(async d=>{
   // los colores sin fotos no se enseñan (para que no salga un cuadro en blanco); si ningún color tiene fotos, el producto tampoco
   P=(d.productos||[]).filter(p=>p&&p.id&&p.nombre).map(p=>Array.isArray(p.colores)?Object.assign({},p,{colores:p.colores.filter(c=>c&&c.fotos&&c.fotos.length)}):p).filter(p=>!Array.isArray(p.colores)||p.colores.length);
@@ -1068,7 +1069,7 @@ fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{prod
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
   leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
   if(ped) verPedido(ped);
-  const r=prodDeLink(decodeURIComponent((location.hash||'').slice(1))); if(r){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} abrirProducto(r.id,r.colorK); }
+  const r=prodDeLink(decodeURIComponent((hashInicial||'').slice(1))); if(r){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} abrirProducto(r.id,r.colorK); }
 });
 })();
 </script>
