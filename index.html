@@ -202,6 +202,7 @@ body.tbf .ph{background:#e6dccb}
 .pv{position:fixed;inset:0;z-index:50;background:#fff;overflow:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(90px + env(safe-area-inset-bottom,0px))}
 .pv-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;padding:calc(8px + env(safe-area-inset-top,0px)) 8px 8px;pointer-events:none}
 .pv-top .ib{pointer-events:auto;background:rgba(255,255,255,.92)}
+.pv-acc{display:flex;gap:8px}
 .gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;margin-top:-56px}
 .gal::-webkit-scrollbar{display:none}
 .gal img{flex:0 0 100%;width:100%;aspect-ratio:4/5;object-fit:cover;scroll-snap-align:start;background:var(--soft)}
@@ -354,7 +355,7 @@ footer .c{text-align:center;color:var(--muted);font-size:12px}
 
 <!-- producto -->
 <div class="pv" id="pv" hidden role="dialog" aria-modal="true" aria-labelledby="pvName">
-  <div class="pv-top"><button class="ib" id="pvBack" aria-label="Regresar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><button class="ib" id="pvFav" aria-label="Agregar a favoritos"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></div>
+  <div class="pv-top"><button class="ib" id="pvBack" aria-label="Regresar"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><span class="pv-acc"><button class="ib" id="pvLink" aria-label="Copiar link de esta prenda" title="Copiar link"><svg viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg></button><button class="ib" id="pvFav" aria-label="Agregar a favoritos"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button></span></div>
   <div class="pv-in">
     <div><div class="gal" id="gal"></div><div class="dots" id="dots"></div></div>
     <div class="pv-d">
@@ -663,7 +664,7 @@ window.addEventListener('scroll',()=>{ const y=$('#anclaM').getBoundingClientRec
 let linkListo=false;
 function ponerLink(){ if(!linkListo||vista||!$('#pv').hidden) return; const h=[fMarca?infoMarca(fMarca).k:'',cat?slug(cat):''].filter(Boolean).join('/');
   if(('#'+h)!==location.hash&&!(h===''&&!location.hash)) history.replaceState(null,'',h?'#'+h:location.pathname+location.search); }
-function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), h=h0.toLowerCase(); if(!h||P.some(p=>p.id===h0)) return false;
+function leerLink(){ const h0=decodeURIComponent((location.hash||'').slice(1)), h=h0.toLowerCase(); if(!h||prodDeLink(h0)) return false;
   const ps=h.split('/'); let ok=false;
   if(ps[0]==='black-friday'&&P.some(esBF)){ ps.shift(); const m=ps[0]&&ordenMarcas(P.filter(esBF).map(marcaDe)).find(x=>infoMarca(x).k===ps[0]); vista='bf'; fMarca=m||''; return true; }
   const m=ordenMarcas(P.map(marcaDe)).find(x=>infoMarca(x).k===ps[0]); if(m){ fMarca=m; ps.shift(); ok=true; }
@@ -754,7 +755,7 @@ $('#marcas').addEventListener('click',e=>{ const b=e.target.closest('[data-marca
 document.addEventListener('click',e=>{ const v=e.target.closest('[data-ver-marca]'); if(v){ e.stopPropagation(); fMarca=v.dataset.verMarca; render(); $('#marcas').scrollIntoView({behavior:'smooth'}); return; }
   if(e.target.closest('[data-quitar-marca]')){ fMarca=''; fCol=''; render(); }
   if(e.target.closest('[data-quitar-col]')){ fCol=''; render(); } },true);
-window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); abierto.slice().forEach(cerrar); verPedido(ped); return; } if(leerLink()) render(); });
+window.addEventListener('hashchange',()=>{ const ped=leerPedido(); if(ped){ history.replaceState(null,'',location.pathname+location.search); abierto.slice().forEach(cerrar); verPedido(ped); return; } const r=prodDeLink(decodeURIComponent((location.hash||'').slice(1))); if(r){ if(!cur||cur.id!==r.id) abrirProducto(r.id,r.colorK,true); return; } if(leerLink()) render(); });
 document.addEventListener('click',e=>{
   const fv=e.target.closest('[data-fav]');
   if(fv){ e.stopPropagation(); const id=fv.dataset.fav; if(favs.has(id)) favs.delete(id); else { favs.add(id); toast('Guardado en favoritos'); } guardarFavs(); fv.classList.toggle('on',favs.has(id)); return; }
@@ -798,15 +799,30 @@ $('#ovFiltro').addEventListener('click',e=>{ const b=e.target.closest('.chip'); 
 $('#fLimpiar').addEventListener('click',()=>{ orden='nuevo'; cat=''; fTalla=''; fMarca=''; fCol=''; fEstado=''; render(); pintarFiltros(); });
 
 /* ---------- producto ---------- */
-function abrirProducto(id,colorK){
+/* 26-nov: cada prenda tiene link con nombre: #youngla-golds-iron-legacy-bodysuit y, con color, …/burgundy-cream.
+   Los links viejos (#id) siguen sirviendo. */
+let SLUGS=null, SLUGS_P=null, SLUGS_N=-1;
+function slugsProd(){ if(SLUGS&&SLUGS_P===P&&SLUGS_N===P.length) return SLUGS; const cuenta={}; P.forEach(p=>{ const b=slug(marcaDe(p)+' '+p.nombre); cuenta[b]=(cuenta[b]||0)+1; });
+  SLUGS=new Map(P.map(p=>{ const b=slug(marcaDe(p)+' '+p.nombre); return [p.id,cuenta[b]>1?b+'-'+String(p.id).slice(-4):b]; })); SLUGS_P=P; SLUGS_N=P.length; return SLUGS; }
+function linkProd(p,c){ const b=slugsProd().get(p.id)||p.id; const cs=p.colores||[]; return c&&cs.length>1&&c!==cs[0]&&slug(c.nombre)?b+'/'+slug(c.nombre):b; }
+function prodDeLink(h){ h=String(h||''); if(!h) return null; const crudo=P.find(p=>p.id===h); if(crudo) return {id:crudo.id};
+  const i=h.indexOf('/'), b=(i<0?h:h.slice(0,i)).toLowerCase(), col=i<0?'':h.slice(i+1).toLowerCase();
+  let id=null; for(const [k,v] of slugsProd()) if(v===b){ id=k; break; } if(!id) return null;
+  const p=P.find(x=>x.id===id), c=col&&(p.colores||[]).find(x=>slug(x.nombre)===col||x.k===col);
+  return {id,colorK:c?c.k:undefined}; }
+function linkActual(){ if(!cur) return; const h='#'+linkProd(cur,curColor); if(location.hash!==h) try{ history.replaceState(history.state,'',h); }catch(e){} }
+function abrirProducto(id,colorK,sinHistorial){
   const p=P.find(x=>x.id===id); if(!p) return;
   cur=p; curColor=(colorK&&(p.colores||[]).find(c=>c.k===colorK))||(p.colores||[])[0]||null; curTalla='';
-  try{ history.pushState({p:id},'','#'+encodeURIComponent(id)); }catch(e){}
+  try{ const h='#'+linkProd(p,curColor); if(sinHistorial) history.replaceState({p:id},'',h); else history.pushState({p:id},'',h); }catch(e){}
   pintarProducto(); $('#pv').hidden=false; $('#buy').hidden=false; $('#pv').scrollTop=0; document.body.style.overflow='hidden';
 }
 function cerrarProducto(){ $('#pv').hidden=true; $('#buy').hidden=true; cur=null; if(!abierto.length) document.body.style.overflow=''; }
 $('#pvBack').addEventListener('click',()=>{ if(history.state&&history.state.p) history.back(); else cerrarProducto(); });
-window.addEventListener('popstate',()=>{ const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&P.some(p=>p.id===id)) abrirProducto(id); else cerrarProducto(); });
+window.addEventListener('popstate',()=>{ const r=prodDeLink(decodeURIComponent((location.hash||'').slice(1))); if(r) abrirProducto(r.id,r.colorK,true); else cerrarProducto(); });
+$('#pvLink').addEventListener('click',async()=>{ if(!cur) return; const u=location.origin+location.pathname+'#'+linkProd(cur,curColor);
+  try{ await navigator.clipboard.writeText(u); }catch(e){ const t=document.createElement('textarea'); t.value=u; document.body.appendChild(t); t.select(); try{ document.execCommand('copy'); }catch(_){} t.remove(); }
+  toast('Link copiado: '+(cur.nombre||'')+(curColor&&curColor.nombre?' · '+curColor.nombre:'')); });
 /* Otros diseños: prendas de la misma marca con el mismo corte (terminan igual: "Premium Oversized Tee", "Hoodies"…) */
 function palabrasCorte(n){ return String(n||'').toLowerCase().replace(/["“”'’]/g,'').replace(/\s+in\s+(\S+\s*){1,3}$/,'').replace(/[^a-z0-9áéíóúñ]+/g,' ').trim().split(' ').filter(Boolean); }
 function otrosDisenos(p){
@@ -854,7 +870,7 @@ function pintarProducto(){
   $('#btnAdd').textContent=c.agotado?'Agotado · Avísame cuando regrese':sinStock?'Preguntar por WhatsApp':p.estado==='early'?'Ordenar en la bolsa':'Agregar a la bolsa';
 }
 $('#gal').addEventListener('scroll',()=>{ const g=$('#gal'), i=Math.round(g.scrollLeft/g.clientWidth); document.querySelectorAll('#dots i').forEach((d,j)=>d.classList.toggle('on',i===j)); },{passive:true});
-$('#pvColors').addEventListener('click',e=>{ const b=e.target.closest('[data-color]'); if(!b) return; curColor=cur.colores.find(x=>x.k===b.dataset.color); curTalla=''; pintarProducto(); });
+$('#pvColors').addEventListener('click',e=>{ const b=e.target.closest('[data-color]'); if(!b) return; curColor=cur.colores.find(x=>x.k===b.dataset.color); curTalla=''; pintarProducto(); linkActual(); });
 $('#pvSizes').addEventListener('click',e=>{ const b=e.target.closest('[data-talla]'); if(!b||b.disabled) return; curTalla=b.dataset.talla; $('#pvErr').hidden=true; pintarProducto(); });
 $('#pvFav').addEventListener('click',()=>{ if(!cur) return; if(favs.has(cur.id)) favs.delete(cur.id); else { favs.add(cur.id); toast('Guardado en favoritos'); } guardarFavs(); pintarProducto(); render(); });
 $('#btnAdd').addEventListener('click',()=>{
@@ -1052,7 +1068,7 @@ fetch('datos.json?v='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.json():{prod
   const ped=leerPedido(); if(ped) history.replaceState(null,'',location.pathname+location.search);
   leerLink(); linkListo=true; renderHero(); render(); quitarIntro();
   if(ped) verPedido(ped);
-  const id=decodeURIComponent((location.hash||'').slice(1)); if(id&&ids.has(id)) abrirProducto(id);
+  const r=prodDeLink(decodeURIComponent((location.hash||'').slice(1))); if(r){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} abrirProducto(r.id,r.colorK); }
 });
 })();
 </script>
