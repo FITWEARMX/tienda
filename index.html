@@ -807,7 +807,10 @@ function slugsProd(){ if(SLUGS&&SLUGS_P===P&&SLUGS_N===P.length) return SLUGS; c
 function linkProd(p,c){ const b=slugsProd().get(p.id)||p.id; const cs=p.colores||[]; return c&&cs.length>1&&c!==cs[0]&&slug(c.nombre)?b+'/'+slug(c.nombre):b; }
 function prodDeLink(h){ h=String(h||''); if(!h) return null; const crudo=P.find(p=>p.id===h); if(crudo) return {id:crudo.id};
   const i=h.indexOf('/'), b=(i<0?h:h.slice(0,i)).toLowerCase(), col=i<0?'':h.slice(i+1).toLowerCase();
-  let id=null; for(const [k,v] of slugsProd()) if(v===b){ id=k; break; } if(!id) return null;
+  let id=null; if(/^fw-\d+$/.test(b)){ // código fijo FW-0123 de la prenda o de un color (26-nov)
+    const pc=P.find(p=>String(p.codigo||'').toLowerCase()===b); if(pc) id=pc.id;
+    else for(const p of P){ const c=(p.colores||[]).find(x=>String(x.codigo||'').toLowerCase()===b); if(c) return {id:p.id,colorK:c.k}; } }
+  if(!id) for(const [k,v] of slugsProd()) if(v===b){ id=k; break; } if(!id) return null;
   const p=P.find(x=>x.id===id), c=col&&(p.colores||[]).find(x=>slug(x.nombre)===col||x.k===col);
   return {id,colorK:c?c.k:undefined}; }
 function linkActual(){ if(!cur) return; const h='#'+linkProd(cur,curColor); if(location.hash!==h) try{ history.replaceState(history.state,'',h); }catch(e){} }
